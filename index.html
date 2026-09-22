@@ -1,0 +1,52 @@
+<!doctype html><html lang="ro"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#073b63"><link rel="manifest" href="manifest.webmanifest">
+<title>NRG Cables · PLUP</title>
+<style>
+:root{--n:#073b63;--b:#2489e8;--o:#ff7418;--g:#11965d;--t:#092f51;--p:#f4f7fa}
+*{box-sizing:border-box}body{margin:0;background:#edf2f6;font:15px Arial,sans-serif;color:var(--t)}
+main{max-width:780px;margin:auto;padding:14px}.box,.report{background:#fff;border-radius:22px;padding:18px;margin-bottom:14px;box-shadow:0 8px 25px #0001}
+h1,h2,h3{margin:0}.brand{font-weight:900;font-size:22px;margin-bottom:14px}.tabs{display:flex;gap:8px}.tabs button,.primary{border:0;border-radius:13px;padding:14px;font-weight:800;font-size:16px}
+.tabs button{flex:1;background:#e7eef4;color:var(--t)}.tabs .on,.primary{background:var(--n);color:#fff}
+.day{border:1px solid #d8e2eb;border-radius:15px;padding:13px;margin-top:13px}.day h3{margin-bottom:9px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}label{font-weight:700;font-size:12px}
+input{width:100%;margin-top:5px;padding:13px;border:1px solid #cbd8e2;border-radius:10px;font-size:16px}
+.actions{display:flex;gap:8px;margin-top:13px}.actions button{flex:1}
+.hero{background:var(--n);color:white;border-radius:18px;padding:24px;margin-bottom:13px}.hero h1{font-size:28px}.hero p{font-size:18px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border-radius:17px;padding:17px}.al{background:#eef7ff}.cu{background:#fff4ec}
+.row2{display:grid;grid-template-columns:1fr 1fr;text-align:center;gap:8px}.big{font-size:28px;font-weight:900}.blue{color:var(--b)}.orange{color:var(--o)}
+.sum{display:grid;grid-template-columns:1fr 1fr;background:#eaf8f3;border-radius:17px;padding:17px;margin-top:12px;text-align:center}.sum b{display:block;color:var(--g);font-size:27px;margin-top:6px}
+.waste{background:var(--p);border-radius:17px;padding:17px;margin-top:12px}.wr{display:grid;grid-template-columns:1fr 1fr;gap:14px}.line{display:flex;justify-content:space-between;padding:8px 0}
+.ring{width:135px;height:135px;border-radius:50%;margin:auto;display:grid;place-items:center;background:conic-gradient(var(--g) var(--pct),#ccd7df 0);position:relative}.ring:before{content:"";position:absolute;width:98px;height:98px;background:var(--p);border-radius:50%}.ring span{z-index:1;font-size:22px;font-weight:900}
+.bottom{display:grid;grid-template-columns:1fr 1fr;background:var(--n);color:white;border-radius:17px;padding:17px;margin-top:12px;text-align:center}.bottom b{display:block;font-size:28px;margin-top:5px}
+.sep{border-top:2px solid #e2e9ef;margin-top:18px;padding-top:13px;font-size:18px;font-weight:900}.foot{text-align:center;padding:18px;font-weight:800;letter-spacing:3px}
+@media(max-width:580px){.fields,.cards,.wr{grid-template-columns:1fr}.report{padding:11px}}
+@media print{body{background:white}#editor{display:none}main{max-width:none;padding:0}.report{box-shadow:none;margin:0;border-radius:0}}
+</style></head><body><main>
+<section class="box" id="editor"><div class="brand">NRG CABLES │ PLUP DEPARTMENT</div>
+<div class="tabs"><button id="m1" class="on" type="button">1 ZI</button><button id="m3" type="button">3 ZILE</button></div>
+<div id="days"></div><div class="actions"><button id="update" class="primary" type="button">ACTUALIZEAZĂ</button><button id="pdf" class="primary" type="button">PDF / PRINT</button></div></section>
+<section class="report" id="report"></section></main>
+<script>
+let mode=1;const dn=["Vineri","Sâmbătă","Duminică"];
+const F=[["Data","date"],["Aluminiu predat (t)","al"],["Cupru predat (t)","cu"],["Backlog aluminiu (t)","bal"],["Backlog cupru (t)","bcu"],["Deșeu aluminiu (t)","wal"],["Deșeu cupru (t)","wcu"],["Observații","obs"]];
+function input(label,id,v=""){return `<label>${label}<input id="${id}" type="text" inputmode="text" value="${v}"></label>`}
+function form(){days.innerHTML=Array.from({length:mode},(_,i)=>`<div class="day"><h3>${mode===1?"Ziua":dn[i]}</h3><div class="fields">${F.map(([a,b])=>input(a,b+i,b==="date"&&i===0?"17.09.2026":"")).join("")}</div></div>`).join("");restore()}
+function n(id){return parseFloat((document.getElementById(id)?.value||"0").replace(",","."))||0}
+function d(i){return{date:document.getElementById("date"+i)?.value||"",al:n("al"+i),cu:n("cu"+i),bal:n("bal"+i),bcu:n("bcu"+i),wal:n("wal"+i),wcu:n("wcu"+i),obs:document.getElementById("obs"+i)?.value||""}}
+function f(x){return (Math.round(x*10)/10).toFixed(1).replace(".0","")}
+function section(x,title=""){let pred=x.al+x.cu,back=x.bal+x.bcu,w=x.wal+x.wcu,proc=pred+w,p=proc?w/proc*100:0;return`${title?`<div class="sep">${title}${x.date?" · "+x.date:""}</div>`:""}
+<div class="cards"><div class="card al"><h2>Al &nbsp; Aluminiu</h2><div class="row2"><div>Predat<div class="big">${f(x.al)} t</div></div><div>Backlog<div class="big blue">${f(x.bal)} t</div></div></div></div>
+<div class="card cu"><h2>Cu &nbsp; Cupru</h2><div class="row2"><div>Predat<div class="big">${f(x.cu)} t</div></div><div>Backlog<div class="big orange">${f(x.bcu)} t</div></div></div></div></div>
+<div class="sum"><div>✓ Total predat AL + CU<b>${f(pred)} t</b></div><div>▣ Backlog predat<b>${f(back)} t</b></div></div>
+<div class="waste"><h2>♻ Deșeu</h2><div class="wr"><div><div class="line"><b>Aluminiu</b><b>${f(x.wal)} t</b></div><div class="line"><b>Cupru</b><b>${f(x.wcu)} t</b></div><div class="line"><b>Total deșeu</b><b>${f(w)} t</b></div>${x.obs?`<div class="line"><b>Obs.</b><span>${x.obs}</span></div>`:""}</div><div><div class="ring" style="--pct:${p}%"><span>${p.toFixed(1)}%</span></div></div></div></div>
+<div class="bottom"><div>Total procesat<b>${f(proc)} t</b></div><div>Procent deșeu<b>${p.toFixed(1)}%</b></div></div>`}
+function build(){let a=Array.from({length:mode},(_,i)=>d(i));let title=mode===1?a[0].date:`${a[0].date} – ${a[2].date}`;let body=mode===1?section(a[0]):a.map((x,i)=>section(x,dn[i])).join("");if(mode===3){let z=a.reduce((q,x)=>({date:"",al:q.al+x.al,cu:q.cu+x.cu,bal:q.bal+x.bal,bcu:q.bcu+x.bcu,wal:q.wal+x.wal,wcu:q.wcu+x.wcu,obs:""}),{al:0,cu:0,bal:0,bcu:0,wal:0,wcu:0});body+=section(z,"TOTAL WEEKEND")}report.innerHTML=`<div class="brand">NRG CABLES │ PLUP DEPARTMENT</div><div class="hero"><h1>▤ Raport</h1><p>▣ ${title}</p></div>${body}<div class="foot">NRG CABLES │ PLUP</div>`;save()}
+function save(){let vals={mode};document.querySelectorAll("input").forEach(x=>vals[x.id]=x.value);localStorage.setItem("plupData",JSON.stringify(vals))}
+function restore(){try{let v=JSON.parse(localStorage.getItem("plupData")||"{}");document.querySelectorAll("input").forEach(x=>{if(v[x.id]!=null)x.value=v[x.id]})}catch(e){}}
+m1.onclick=()=>{mode=1;m1.classList.add("on");m3.classList.remove("on");form();build()}
+m3.onclick=()=>{mode=3;m3.classList.add("on");m1.classList.remove("on");form();build()}
+update.onclick=build;pdf.onclick=()=>{build();setTimeout(()=>window.print(),100)}
+form();build();
+if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+</script></body></html>
