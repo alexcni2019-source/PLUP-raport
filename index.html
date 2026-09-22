@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071828">
+<link rel="manifest" href="manifest.webmanifest">
+<title>NRG Cables · PLUP</title>
+<style>
+:root{
+ --bg:#061523;--panel:#0a2033;--panel2:#0d2b45;--navy:#073b63;--cyan:#1fa7ff;
+ --blue:#168df0;--orange:#ff7418;--green:#24d66d;--text:#f7fbff;--muted:#a9bfd1;
+ --line:#31546e;--soft:#102b40
+}
+*{box-sizing:border-box}
+body{margin:0;background:
+ radial-gradient(circle at 15% 8%,#173149 0,transparent 25%),
+ radial-gradient(circle at 90% 18%,#0d3a36 0,transparent 22%),
+ linear-gradient(135deg,#06121e,#091c2c 55%,#04101a);
+ color:var(--text);font:15px Arial,sans-serif;min-height:100vh}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.13;background:
+ linear-gradient(135deg,transparent 0 44%,#4e7ca0 44% 45%,transparent 45% 100%),
+ linear-gradient(45deg,transparent 0 72%,#1f5a7e 72% 73%,transparent 73% 100%);background-size:260px 260px,340px 340px}
+main{max-width:900px;margin:auto;padding:18px}
+.box,.report{position:relative;background:linear-gradient(145deg,rgba(11,31,48,.96),rgba(5,18,29,.98));border:1px solid #284861;border-radius:24px;padding:20px;margin-bottom:18px;box-shadow:0 18px 45px #0008, inset 0 1px 0 #ffffff10;overflow:hidden}
+.box:after,.report:after{content:"";position:absolute;width:240px;height:240px;right:-100px;top:-120px;background:radial-gradient(circle,#1c8fe72b,transparent 65%);pointer-events:none}
+.brandbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}
+.logoText{display:flex;align-items:center;gap:18px}
+.nrg{font-weight:1000;font-size:28px;letter-spacing:1px}.nrg small{display:block;font-size:10px;letter-spacing:6px;text-align:center;margin-top:2px}
+.vline{width:1px;height:58px;background:#9bb4c7}
+.plup{font-weight:900;font-size:28px;letter-spacing:1px}.plup small{display:block;font-size:13px;letter-spacing:3px;margin-top:4px}
+.stripes{display:flex;gap:8px;transform:skew(-34deg);margin-right:15px}.stripes i{display:block;width:22px;height:72px}.stripes i:nth-child(1){background:#0e78c9}.stripes i:nth-child(2){background:#0a4b77}.stripes i:nth-child(3){background:#25b85f}
+.tabs{display:flex;gap:10px}.tabs button,.primary{border:1px solid #2c5877;border-radius:13px;padding:14px;font-weight:900;font-size:16px;cursor:pointer;background:#102c42;color:#d7e7f3}
+.tabs button{flex:1}.tabs .on,.primary{background:linear-gradient(135deg,#075087,#073b63);color:white;box-shadow:0 0 18px #138ee42e}
+.day{border:1px solid #294d67;border-radius:16px;padding:14px;margin-top:14px;background:#071a29aa}.day h3{margin:0 0 10px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{font-weight:700;font-size:12px;color:#c9d9e5}
+input{width:100%;margin-top:5px;padding:13px;border:1px solid #355a73;border-radius:10px;font-size:16px;background:#0b2437;color:white;outline:none}
+input:focus{border-color:#24a7ff;box-shadow:0 0 0 3px #159ee522}
+.actions{display:flex;gap:10px;margin-top:14px}.actions button{flex:1}.pdf-status{text-align:center;min-height:18px;margin-top:9px;color:#80eeb0;font-weight:700;font-size:13px}
+
+.report{padding:24px}
+.hero{position:relative;min-height:150px;border-radius:20px;padding:30px 32px;margin-bottom:18px;display:flex;align-items:center;overflow:hidden;border:1px solid #168bd4;box-shadow:0 0 18px #078be733;background:
+ linear-gradient(90deg,rgba(3,48,82,.98) 0%,rgba(3,48,82,.88) 43%,rgba(2,21,35,.35) 100%),
+ repeating-linear-gradient(165deg,#27475e 0 7px,#0e273a 7px 15px,#9f613c 15px 20px,#2a1511 20px 28px)}
+.hero:after{content:"";position:absolute;inset:auto -50px -100px 45%;height:230px;transform:rotate(-10deg);background:repeating-linear-gradient(90deg,#a7b5bf 0 4px,#334754 4px 8px,#b76539 8px 12px,#3a1d17 12px 17px);filter:blur(.2px);opacity:.7}
+.heroContent{z-index:1;display:flex;gap:26px;align-items:center}.docicon{font-size:65px;padding-right:25px;border-right:2px solid #ffffff99}.hero h1{font-size:48px;margin:0}.hero p{font-size:23px;margin:8px 0 0}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{position:relative;border-radius:19px;padding:22px;overflow:hidden;min-height:210px}
+.card:after{position:absolute;right:-8px;top:10px;font-size:110px;font-weight:900;opacity:.06}
+.al{background:linear-gradient(135deg,#073358,#08243a);border:1px solid #2aa8ff;box-shadow:inset 0 0 30px #0d7cc62b}.al:after{content:"Al"}
+.cu{background:linear-gradient(135deg,#3b2618,#1d1c1b);border:1px solid #c97b3a;box-shadow:inset 0 0 30px #ff741824}.cu:after{content:"Cu"}
+.cardHead{display:flex;align-items:center;gap:15px;margin-bottom:25px}.atom{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:30px;font-weight:900}.al .atom{background:linear-gradient(145deg,#25b5ff,#0574e5)}.cu .atom{background:linear-gradient(145deg,#ff9b48,#ff5d00)}
+.card h2{font-size:28px;margin:0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.metric{padding:4px 10px}.metric+ .metric{border-left:1px solid #7c96a855}.metric span{color:#d5e2eb;font-size:17px}.big{font-size:35px;font-weight:900;margin-top:7px}.blue{color:#249cff}.orange{color:#ff7b1c}.sub{color:#84bce5;font-size:16px;margin-top:5px}
+.sum{display:grid;grid-template-columns:1fr 1fr;background:linear-gradient(135deg,#063d2d,#052a25);border:1px solid #2adf76;border-radius:19px;padding:24px;margin-top:16px;box-shadow:0 0 20px #16cf6a22;text-align:center}.sum>div+div{border-left:1px solid #6adf9b66}.sum span{font-size:20px;font-weight:800}.sum b{display:block;color:#5cf39a;font-size:38px;margin-top:7px}
+.waste{background:linear-gradient(145deg,#0d2b42,#071c2d);border:1px solid #4d86ae;border-radius:19px;padding:22px;margin-top:16px}.waste h2{font-size:28px;margin:0 0 16px}.wr{display:grid;grid-template-columns:1fr 1fr;gap:20px}.wleft{padding-right:18px;border-right:1px solid #5a7b9266}.line{display:flex;justify-content:space-between;gap:12px;padding:10px 0;font-size:17px}.line.total{border-top:1px solid #68849a77;margin-top:5px;padding-top:16px}
+.ringWrap{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:center}.ring{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--green) var(--pct),#b9c9d6 var(--pct));position:relative}.ring:before{content:"";position:absolute;width:105px;height:105px;background:#091d2c;border-radius:50%}.ringInner{z-index:1;text-align:center}.ringInner b{font-size:29px}.ringInner small{display:block;margin-top:4px}.legend div{margin:14px 0}.dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:9px}.greenDot{background:#16cf6a}.greyDot{background:#b9c9d6}
+.bottom{display:grid;grid-template-columns:1fr 1fr;background:linear-gradient(135deg,#064a7d,#062e50);border:1px solid #1ba0f2;border-radius:19px;padding:24px;margin-top:16px;text-align:center;box-shadow:0 0 22px #168ee72b}.bottom>div+div{border-left:1px solid #91c7e966}.bottom span{font-size:20px}.bottom b{display:block;font-size:39px;margin-top:6px}
+.sep{border-top:2px solid #31526b;margin-top:24px;padding-top:15px;font-size:20px;font-weight:900;color:#aee0ff}
+.foot{text-align:center;padding:24px 10px 8px;font-weight:800;letter-spacing:5px;color:#d6e7f3}
+@media(max-width:650px){main{padding:8px}.box,.report{padding:13px;border-radius:17px}.fields,.cards,.wr,.ringWrap{grid-template-columns:1fr}.brandbar{align-items:flex-start}.nrg,.plup{font-size:19px}.vline{height:43px}.plup small{font-size:9px}.stripes{display:none}.hero{min-height:120px;padding:20px}.hero h1{font-size:35px}.docicon{font-size:45px}.card{min-height:auto}.wleft{border-right:0;border-bottom:1px solid #5a7b9266;padding:0 0 15px}.ringWrap{justify-items:center}.sum,.bottom{grid-template-columns:1fr 1fr}.sum b,.bottom b{font-size:28px}.actions{flex-direction:column}}
+</style>
+</head>
+<body><main>
+<section class="box" id="editor">
+ <div class="brandbar"><div class="logoText"><div class="nrg">NRG<small>CABLES</small></div><div class="vline"></div><div class="plup">PLUP<small>DEPARTAMENT</small></div></div><div class="stripes"><i></i><i></i><i></i></div></div>
+ <div class="tabs"><button id="m1" class="on" type="button">1 ZI</button><button id="m3" type="button">3 ZILE</button></div>
+ <div id="days"></div>
+ <div class="actions"><button id="update" class="primary" type="button">ACTUALIZEAZĂ</button><button id="pdf" class="primary" type="button">GENEREAZĂ PDF</button></div>
+ <div id="pdfStatus" class="pdf-status"></div>
+</section>
+<section class="report" id="report"></section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+let mode=1;const dn=["Vineri","Sâmbătă","Duminică"];
+const F=[["Data","date"],["Aluminiu predat (t)","al"],["Cupru predat (t)","cu"],["Backlog aluminiu (t)","bal"],["Backlog cupru (t)","bcu"],["Deșeu aluminiu (t)","wal"],["Deșeu cupru (t)","wcu"],["Observații","obs"]];
+const $=id=>document.getElementById(id),days=$("days"),report=$("report"),m1=$("m1"),m3=$("m3"),update=$("update"),pdf=$("pdf"),pdfStatus=$("pdfStatus");
+const pad=v=>String(v).padStart(2,"0");
+function dateRO(dt=new Date()){return `${pad(dt.getDate())}.${pad(dt.getMonth()+1)}.${dt.getFullYear()}`}
+function addDaysRO(ro,add){let p=ro.split(".");if(p.length!==3)return ro;let x=new Date(+p[2],+p[1]-1,+p[0]);x.setDate(x.getDate()+add);return dateRO(x)}
+function input(label,id,v=""){return `<label>${label}<input id="${id}" type="text" inputmode="text" value="${esc(v)}"></label>`}
+function form(){let t=dateRO();days.innerHTML=Array.from({length:mode},(_,i)=>`<div class="day"><h3>${mode===1?"Ziua":dn[i]}</h3><div class="fields">${F.map(([a,b])=>input(a,b+i,b==="date"?(mode===1?t:addDaysRO(t,i)):"")).join("")}</div></div>`).join("");restore()}
+function n(id){return parseFloat(($(id)?.value||"0").replace(",","."))||0}
+function d(i){return{date:$("date"+i)?.value||"",al:n("al"+i),cu:n("cu"+i),bal:n("bal"+i),bcu:n("bcu"+i),wal:n("wal"+i),wcu:n("wcu"+i),obs:$("obs"+i)?.value||""}}
+function f(x){return (Math.round(x*10)/10).toFixed(1).replace(".0","")}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function brand(){return `<div class="brandbar"><div class="logoText"><div class="nrg">NRG<small>CABLES</small></div><div class="vline"></div><div class="plup">PLUP<small>DEPARTAMENT</small></div></div><div class="stripes"><i></i><i></i><i></i></div></div>`}
+function section(x,title=""){let pred=x.al+x.cu,back=x.bal+x.bcu,w=x.wal+x.wcu,proc=pred+w,p=proc?w/proc*100:0,mat=proc-w;
+return `${title?`<div class="sep">${title}${x.date?" · "+esc(x.date):""}</div>`:""}
+<div class="cards">
+ <div class="card al"><div class="cardHead"><div class="atom">Al</div><h2>Aluminiu</h2></div><div class="row2"><div class="metric"><span>▰ Predat</span><div class="big">${f(x.al)} t</div></div><div class="metric"><span>◇ Backlog</span><div class="big blue">${f(x.bal)} t</div><div class="sub">[ ${f(x.bal)} t ]</div></div></div></div>
+ <div class="card cu"><div class="cardHead"><div class="atom">Cu</div><h2>Cupru</h2></div><div class="row2"><div class="metric"><span>▰ Predat</span><div class="big">${f(x.cu)} t</div></div><div class="metric"><span>◇ Backlog</span><div class="big orange">${f(x.bcu)} t</div><div class="sub">[ ${f(x.bcu)} t ]</div></div></div></div>
+</div>
+<div class="sum"><div><span>✓ &nbsp; Total predat AL + CU</span><b>${f(pred)} t</b></div><div><span>▣ &nbsp; Backlog predat</span><b>${f(back)} t</b></div></div>
+<div class="waste"><h2>♻ &nbsp; Deșeu</h2><div class="wr"><div class="wleft">
+ <div class="line"><span>🔵 &nbsp; Aluminiu</span><b>${f(x.wal)} t</b></div>
+ <div class="line"><span>🟠 &nbsp; Cupru</span><b>${f(x.wcu)} t</b></div>
+ <div class="line total"><span>♻ &nbsp; Total deșeu</span><b>${f(w)} t</b></div>
+ ${x.obs?`<div class="line"><span>Obs.</span><span>${esc(x.obs)}</span></div>`:""}
+ </div><div class="ringWrap"><div class="ring" style="--pct:${Math.min(p,100)}%"><div class="ringInner"><b>${p.toFixed(1)}%</b><small>Procent deșeu</small></div></div>
+ <div class="legend"><div><i class="dot greenDot"></i>Deșeu<br><b>${f(w)} t (${p.toFixed(1)}%)</b></div><div><i class="dot greyDot"></i>Material procesat<br><b>${f(mat)} t (${(100-p).toFixed(1)}%)</b></div></div></div></div></div>
+<div class="bottom"><div><span>↗ &nbsp; Total procesat</span><b>${f(proc)} t</b></div><div><span>% &nbsp; Procent deșeu</span><b>${p.toFixed(1)}%</b></div></div>`}
+function getData(){return Array.from({length:mode},(_,i)=>d(i))}
+function total(a){return a.reduce((q,x)=>({date:"",al:q.al+x.al,cu:q.cu+x.cu,bal:q.bal+x.bal,bcu:q.bcu+x.bcu,wal:q.wal+x.wal,wcu:q.wcu+x.wcu,obs:""}),{al:0,cu:0,bal:0,bcu:0,wal:0,wcu:0})}
+function build(){let a=getData(),title=mode===1?a[0].date:`${a[0].date} – ${a[2].date}`,body=mode===1?section(a[0]):a.map((x,i)=>section(x,dn[i])).join("");if(mode===3)body+=section(total(a),"TOTAL WEEKEND");report.innerHTML=`${brand()}<div class="hero"><div class="heroContent"><div class="docicon">▤</div><div><h1>Raport</h1><p>▣ ${esc(title)}</p></div></div></div>${body}<div class="foot">NRG CABLES │ PLUP</div>`;save()}
+function save(){let v={mode};document.querySelectorAll("input").forEach(x=>v[x.id]=x.value);localStorage.setItem("plupData",JSON.stringify(v))}
+function restore(){try{let v=JSON.parse(localStorage.getItem("plupData")||"{}");document.querySelectorAll("input").forEach(x=>{if(v[x.id]!=null)x.value=v[x.id]})}catch(e){}}
+function setMode(v){mode=v;m1.classList.toggle("on",v===1);m3.classList.toggle("on",v===3);form();build()}
+async function canvasOf(el){return html2canvas(el,{scale:2,useCORS:true,backgroundColor:"#061523",logging:false,windowWidth:900})}
+async function addCanvas(doc,canvas,newPage=false){if(newPage)doc.addPage();let pw=210,ph=297,m=5,w=pw-m*2,h=canvas.height*w/canvas.width;if(h>ph-m*2){h=ph-m*2;w=canvas.width*h/canvas.height}doc.addImage(canvas.toDataURL("image/jpeg",.96),"JPEG",(pw-w)/2,m,w,h)}
+async function generatePDF(){build();if(!window.html2canvas||!window.jspdf){pdfStatus.textContent="Bibliotecile PDF nu s-au încărcat.";return}pdf.disabled=true;let old=pdf.textContent;pdf.textContent="SE GENEREAZĂ...";pdfStatus.textContent="Pregătesc raportul dark...";
+try{let a=getData(),{jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
+if(mode===1){await addCanvas(doc,await canvasOf(report));doc.save(`Raport_PLUP_${a[0].date.replaceAll(".","-")}.pdf`)}
+else{let pages=[...a.map((x,i)=>({x,t:dn[i]})),{x:total(a),t:"TOTAL WEEKEND"}],tmp=document.createElement("section");tmp.className="report";tmp.style.cssText="position:fixed;left:-10000px;top:0;width:860px;box-shadow:none";document.body.appendChild(tmp);
+for(let i=0;i<pages.length;i++){let pg=pages[i];tmp.innerHTML=`${brand()}<div class="hero"><div class="heroContent"><div class="docicon">▤</div><div><h1>Raport</h1><p>▣ ${esc(a[0].date+" – "+a[2].date)}</p></div></div></div>${section(pg.x,pg.t)}<div class="foot">NRG CABLES │ PLUP</div>`;await addCanvas(doc,await canvasOf(tmp),i>0)}tmp.remove();doc.save(`Raport_PLUP_Weekend_${a[0].date.replaceAll(".","-")}.pdf`)}
+pdfStatus.textContent="PDF generat cu succes."}catch(e){console.error(e);pdfStatus.textContent="Eroare la generarea PDF."}finally{pdf.disabled=false;pdf.textContent=old;setTimeout(()=>pdfStatus.textContent="",3000)}}
+m1.onclick=()=>setMode(1);m3.onclick=()=>setMode(3);update.onclick=build;pdf.onclick=generatePDF;
+try{let s=JSON.parse(localStorage.getItem("plupData")||"{}");if(s.mode===3)mode=3}catch(e){}
+m1.classList.toggle("on",mode===1);m3.classList.toggle("on",mode===3);form();build();
+if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+</script></body></html>
