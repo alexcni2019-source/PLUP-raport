@@ -37,9 +37,13 @@
     }catch(error){if(error.name==='EncodingError')throw Error('Formatul imaginii nu poate fi citit. Încearcă JPG sau PNG.');throw error;}
     finally{URL.revokeObjectURL(url);}
   }
-  $('plan-file').addEventListener('change',async e=>{
-    const file=e.target.files?.[0];if(!file)return;
-    const control=$('plan-file');control.disabled=true;$('plan-status').textContent='Citesc tabelul din imagine… Poate dura câteva zeci de secunde.';
+  let importBusy=false;
+  const pasteHint='Pe iPhone, dacă butonul nu poate citi clipboardul, ține apăsat aici și alege „Lipește”. Pe PC poți apăsa Ctrl+V sau ⌘V.';
+  async function importImage(file){
+    if(importBusy)return;
+    if((importNeedsReview||rows.some(r=>fields.some(([key])=>String(r[key]??'').trim())))&&!window.confirm('Importul va înlocui rândurile din formular. Continui?'))return;
+    importBusy=true;$('plan-file').disabled=true;$('plan-paste').disabled=true;$('plan-paste-zone').setAttribute('aria-busy','true');
+    $('plan-status').textContent='Citesc tabelul din imagine… Poate dura câteva zeci de secunde.';
     try{
       const image=await imagePayload(file);
       const response=await window.PLUPFetch('/api/plan/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image}),credentials:'same-origin'});
@@ -53,8 +57,41 @@
       render();$('plan-status').textContent='Datele au fost adăugate în formular. Imaginea nu este stocată.';
       $('plan-review').scrollIntoView({behavior:'smooth',block:'start'});
     }catch(error){$('plan-status').textContent=error.message;}
-    finally{control.disabled=false;control.value='';}
+    finally{importBusy=false;$('plan-file').disabled=false;$('plan-paste').disabled=false;$('plan-paste-zone').removeAttribute('aria-busy');}
+  }
+  $('plan-file').addEventListener('change',async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{await importImage(file);}finally{e.target.value='';}
   });
+  $('plan-paste').addEventListener('click',async()=>{
+    if(importBusy)return;
+    if(!navigator.clipboard?.read){$('plan-status').textContent='Browserul nu permite citirea directă. Ține apăsat în caseta de lipire și alege „Lipește”.';$('plan-paste-zone').focus();return;}
+    try{
+      // The read call happens directly in the click gesture, as required on iOS.
+      const items=await navigator.clipboard.read();
+      for(const item of items){
+        const kind=item.types.find(type=>type.startsWith('image/'));
+        if(kind){await importImage(await item.getType(kind));return;}
+      }
+      $('plan-status').textContent='Clipboardul nu conține o imagine. Copiază fotografia, apoi încearcă din nou.';
+    }catch(error){
+      $('plan-status').textContent='Accesul la clipboard nu a fost permis. Ține apăsat în caseta de lipire și alege „Lipește”.';
+      $('plan-paste-zone').focus();
+    }
+  });
+  document.addEventListener('paste',event=>{
+    if($('plan-view').hidden)return;
+    if(importBusy){if(event.target===$('plan-paste-zone'))event.preventDefault();return;}
+    const file=Array.from(event.clipboardData?.items||[]).find(item=>item.type.startsWith('image/'))?.getAsFile();
+    if(!file){
+      if(event.target===$('plan-paste-zone')){event.preventDefault();$('plan-status').textContent='Clipboardul nu conține o imagine. Copiază fotografia și încearcă din nou.';}
+      return;
+    }
+    event.preventDefault();
+    void importImage(file);
+  });
+  $('plan-paste-zone').addEventListener('beforeinput',event=>{if(event.inputType!=='insertFromPaste')event.preventDefault();});
+  $('plan-paste-zone').addEventListener('blur',()=>{$('plan-paste-zone').textContent=pasteHint;});
   window.PLUPPlan={load(data){$('plan-date').value=data.date;$('plan-week').value=data.week;$('plan-incoming').value=data.incoming||'';rows=data.rows;reviewFields.clear();importNeedsReview=false;$('plan-review').hidden=true;render();},payload};
   render();
 })();
