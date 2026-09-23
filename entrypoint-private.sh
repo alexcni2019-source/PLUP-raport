@@ -12,7 +12,7 @@ fi
 : "${PLUP_SESSION_SECRET:?Set PLUP_SESSION_SECRET in the host's secret variables.}"
 
 socket=/tmp/plup-tailscaled.sock
-tailscaled --tun=userspace-networking --state=/data/tailscale.state --socket="$socket" &
+tailscaled --tun=userspace-networking --statedir=/data --state=/data/tailscale.state --socket="$socket" &
 ts_pid=$!
 app_pid=
 cleanup() {
