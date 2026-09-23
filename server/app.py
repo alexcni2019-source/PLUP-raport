@@ -203,6 +203,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         pathname=unquote(urlsplit(self.path).path)
+        if pathname=="/health":
+            self.respond(200,b"ok","text/plain; charset=utf-8");return
         if pathname=="/api/session":
             token=self.session()
             csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest() if PASSWORD and token else ""
