@@ -17,6 +17,7 @@ import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
 from server.render import plan_image, production_image
+from server.ocr import import_plan, ImportError as PlanImportError
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -241,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts=urlsplit(self.path);path=parts.path
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -250,10 +251,16 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        if not length.isdecimal() or int(length)>MAX_BYTES:
+        limit=8_000_200 if path=="/api/plan/import" else MAX_BYTES
+        if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
+            if path=="/api/plan/import":
+                if not isinstance(body,dict) or set(body)!={"image"}:
+                    raise PlanImportError("Imagine invalidă.")
+                result=import_plan(body["image"])
+                self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path=="/api/login":
                 key=self.client_address[0];now=time.monotonic()
                 failures=[t for t in LOGIN_FAILURES.get(key,[]) if now-t<600]
@@ -271,7 +278,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(201,json.dumps(saved).encode(),"application/json; charset=utf-8");return
             report=process_plan(body) if isinstance(body,dict) and body.get("mode")=="plan" else process(body)
         except (ValueError,UnicodeDecodeError) as exc:
-            self.error(400,str(exc) if isinstance(exc,InvalidReport) else "Raport invalid.");return
+            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) else "Raport invalid.");return
         if path=="/api/render":
             try: page=int(parse_qs(parts.query).get("page",[0])[0]);image=plan_image(report) if report["mode"]=="plan" else production_image(report,page)
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return

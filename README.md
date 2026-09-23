@@ -42,6 +42,7 @@ Valorile din exemplul de mai sus sunt demonstrative; folosește secrete generate
 ## Rapoarte
 
 - Plan: rânduri separate AL/CU, câmpurile din model, totaluri calculate și imagine tabelară PNG.
+- Import plan din imagine: JPG, PNG sau WebP cu tabelul PLUP fotografiat frontal ori capturat; Tesseract propune un draft, marchează cifrele nesigure și cere confirmare înainte de salvare. Imaginea este procesată doar în memorie, fără stocare; tabelul trebuie verificat integral deoarece OCR poate citi greșit zecimalele.
 - Zilnic: luni–joi, valori în tone, procent deșeu și indicatori operaționali.
 - Weekend: vineri–duminică separat, trei imagini zilnice și imaginea totalului.
 - Istoric: fiecare salvare creează o intrare nouă, cu dată și ora salvării; o intrare poate fi redeschisă.
