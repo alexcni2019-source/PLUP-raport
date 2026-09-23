@@ -5,3 +5,4 @@ upload/
 *.sqlite3*
 .env
 .venv/
+PLUP_parola_acces.txt
