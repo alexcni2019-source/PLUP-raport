@@ -46,8 +46,9 @@ else
   trap cleanup EXIT INT TERM
 fi
 
-# Serve is tailnet-only. Never run "tailscale funnel" for this application.
-tailscale --socket="$socket" serve --bg --https=443 8000
+# Serve is tailnet-only. Railway may assign a port other than the Dockerfile default.
+# The proxy must target the exact port read by server.app from PORT.
+tailscale --socket="$socket" serve --bg --https=443 "${PORT:-8000}"
 python -m server.app &
 app_pid=$!
 wait "$app_pid"
