@@ -31,9 +31,11 @@
       const canvas=document.createElement('canvas');
       canvas.width=Math.round(photo.naturalWidth*scale);canvas.height=Math.round(photo.naturalHeight*scale);
       canvas.getContext('2d').drawImage(photo,0,0,canvas.width,canvas.height);
-      const jpeg=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));
-      if(!jpeg||jpeg.size>6_000_000)throw Error('Imaginea este prea mare după pregătire. Încearcă o captură mai mică.');
-      return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Nu am putut citi imaginea.'));reader.readAsDataURL(jpeg);});
+      const compact=canvas.width/canvas.height>2.9;
+      let prepared=await new Promise(resolve=>canvas.toBlob(resolve,compact?'image/png':'image/jpeg',.9));
+      if(prepared?.size>6_000_000&&compact)prepared=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.92));
+      if(!prepared||prepared.size>6_000_000)throw Error('Imaginea este prea mare după pregătire. Încearcă o captură mai mică.');
+      return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Nu am putut citi imaginea.'));reader.readAsDataURL(prepared);});
     }catch(error){if(error.name==='EncodingError')throw Error('Formatul imaginii nu poate fi citit. Încearcă JPG sau PNG.');throw error;}
     finally{URL.revokeObjectURL(url);}
   }
@@ -53,7 +55,7 @@
       if(draft.week)$('plan-week').value=draft.week;
       if(draft.incoming)$('plan-incoming').value=draft.incoming;
       importNeedsReview=true;$('plan-confirm').checked=false;$('plan-review').hidden=false;
-      $('plan-review-message').textContent=`Am extras ${rows.length} rânduri. ${reviewFields.size} câmpuri sunt marcate pentru verificare. Compară toate valorile cu fotografia înainte să salvezi.`;
+      $('plan-review-message').textContent=`Am extras ${rows.length} rânduri. ${reviewFields.size} câmpuri sunt marcate pentru verificare. ${draft.message||'Compară toate valorile cu fotografia înainte să salvezi.'}`;
       render();$('plan-status').textContent='Datele au fost adăugate în formular. Imaginea nu este stocată.';
       $('plan-review').scrollIntoView({behavior:'smooth',block:'start'});
     }catch(error){$('plan-status').textContent=error.message;}

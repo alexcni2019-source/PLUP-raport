@@ -44,6 +44,7 @@ Valorile din exemplul de mai sus sunt demonstrative; folosește secrete generate
 - Plan: rânduri separate AL/CU, câmpurile din model, totaluri calculate și imagine tabelară PNG.
 - Import plan din imagine: JPG, PNG sau WebP cu tabelul PLUP fotografiat frontal ori capturat; Tesseract propune un draft, marchează cifrele nesigure și cere confirmare înainte de salvare. Imaginea este procesată doar în memorie, fără stocare; tabelul trebuie verificat integral deoarece OCR poate citi greșit zecimalele.
 - Import din clipboard: butonul „Lipește imaginea” citește imaginea copiată după gestul utilizatorului; Ctrl/⌘+V funcționează în plan pe desktop. Pe iOS, dacă browserul nu permite citirea directă, apasă lung în caseta de lipire și alege „Lipește”. Textul lipit nu se trimite la server.
+- Capturile Excel late și compacte (inclusiv 1600 × 382 px) sunt citite după grila fixă AL/CU. La import, subtotalurile tipărite sunt comparate cu cifrele extrase; valorile marcate se verifică înainte de confirmare. Pentru fidelitatea cifrelor mici, captura PNG este transmisă fără conversie la JPEG dacă rămâne sub 6 MB.
 - Zilnic: luni–joi, valori în tone, procent deșeu și indicatori operaționali.
 - Weekend: vineri–duminică separat, trei imagini zilnice și imaginea totalului.
 - Istoric: fiecare salvare creează o intrare nouă, cu dată și ora salvării; o intrare poate fi redeschisă.
