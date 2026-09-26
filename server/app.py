@@ -74,8 +74,6 @@ def process(data: object) -> dict:
         raise InvalidReport("Data raportului este invalidă.") from exc
     if start.year < 2020 or start.year > 2100:
         raise InvalidReport("Anul raportului este în afara intervalului permis.")
-    if mode == "weekday" and start.weekday() > 3:
-        raise InvalidReport("Raportul zilnic acceptă luni–joi.")
     if mode == "weekend" and start.weekday() != 4:
         raise InvalidReport("Raportul de weekend trebuie să înceapă vineri.")
     days = [start + timedelta(days=i) for i in range(3 if mode == "weekend" else 1)]
@@ -153,6 +151,18 @@ def save_report(payload):
             conn.execute("INSERT INTO reports (id,mode,report_date,created_at,payload) VALUES (?,?,?,?,?)",(record["id"],record["mode"],record["date"],record["created_at"],json.dumps(payload,ensure_ascii=False)))
     finally:conn.close()
     return record
+
+
+def update_report(identifier, payload):
+    item=process_plan(payload) if isinstance(payload,dict) and payload.get("mode")=="plan" else process(payload)
+    conn=database()
+    try:
+        with conn:
+            result=conn.execute("UPDATE reports SET mode=?,report_date=?,payload=? WHERE id=?",
+                                (item["mode"],item["date"],json.dumps(payload,ensure_ascii=False),identifier))
+            if result.rowcount != 1:raise InvalidReport("Raportul din istoric nu există.")
+    finally:conn.close()
+    return {"id":identifier,"mode":item["mode"],"date":item["date"]}
 
 
 def serialize(result: dict) -> dict:
@@ -285,6 +295,27 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200,image,"image/png")
         else:
             self.respond(200,json.dumps(serialize(report),ensure_ascii=False).encode(),"application/json; charset=utf-8")
+
+    def do_PUT(self):
+        path=urlsplit(self.path).path
+        if not path.startswith("/api/reports/"):
+            self.error(404,"Resursa nu există.");return
+        if not self.authorize(mutation=True):return
+        identifier=path.rsplit("/",1)[-1]
+        try:uuid.UUID(identifier)
+        except ValueError:self.error(404,"Raport inexistent.");return
+        origin=self.headers.get("Origin")
+        if origin and urlsplit(origin).netloc != self.headers.get("Host"):
+            self.error(403,"Origine neautorizată.");return
+        if self.headers.get("Content-Type","").split(";")[0].strip().lower()!="application/json":
+            self.error(415,"Este necesar application/json.");return
+        length=self.headers.get("Content-Length","")
+        if not length.isdecimal() or int(length)>MAX_BYTES:
+            self.error(413,"Raport prea mare.");return
+        try:record=update_report(identifier,json.loads(self.rfile.read(int(length))))
+        except (ValueError,UnicodeDecodeError) as exc:
+            self.error(400,str(exc) if isinstance(exc,InvalidReport) else "Raport invalid.");return
+        self.respond(200,json.dumps(record).encode(),"application/json; charset=utf-8")
 
     def log_message(self,format,*args):
         # Do not log production values or PDF contents.
