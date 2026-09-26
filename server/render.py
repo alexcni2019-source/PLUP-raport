@@ -18,9 +18,33 @@ def font(size, bold=False):
 def text(draw, xy, value, size=16, color=WHITE, bold=False, anchor=None, width=None):
     value = str(value)
     if width:
-        while draw.textlength(value, font=font(size, bold)) > width and len(value) > 1:
-            value = value[:-2] + "…"
+        if draw.textlength(value, font=font(size, bold)) > width:
+            while value and draw.textlength(value + "…", font=font(size, bold)) > width:
+                value = value[:-1]
+            value += "…"
     draw.text(xy, value, font=font(size, bold), fill=color, anchor=anchor)
+
+
+def wrapped(draw, value, size, width, bold=False):
+    """Keep every character within its cell, including long strings without spaces."""
+    result = []
+    for paragraph in str(value or "—").splitlines() or ["—"]:
+        line = ""
+        for word in paragraph.split(" "):
+            proposed = f"{line} {word}" if line else word
+            if draw.textlength(proposed, font=font(size, bold)) <= width:
+                line = proposed
+                continue
+            if line:
+                result.append(line)
+                line = ""
+            for char in word:
+                if line and draw.textlength(line + char, font=font(size, bold)) > width:
+                    result.append(line)
+                    line = ""
+                line += char
+        result.append(line)
+    return result
 
 
 def amount(value, places=2):
@@ -139,17 +163,37 @@ def production_image(report,page=0):
     start=date.fromisoformat(days[0]["date"]).strftime("%d.%m.%Y")
     end=date.fromisoformat(days[-1]["date"]).strftime("%d.%m.%Y")
     date_line=f"{start} – {end}" if total else date.fromisoformat(r["date"]).strftime("%d.%m.%Y")
-    image=Image.new("RGB",(1491,1055),"#071b2a")
-    gradient(image,(0,0,1491,1055),"#0d304c","#071725")
+    labels=["Asumat / Realizat (t) + %","Realizat VS Status","Realizat vs Plan",
+            "Previz sch 1","Backlog Aluminiu (t)","Backlog Cupru (t)",
+            "SF așteptare – Rigid 1 (km)","SF așteptare – Rigid 2 (km)",
+            "SF așteptare – Rigid 3 (km)","SF așteptare – Multifir 8 Cai 1 (t)",
+            "SF așteptare – Multifir 8 Cai 2 (t)","SF așteptare – 16 Cai Niehoff (t)",
+            "SF așteptare – 16 Cai Beta 3 (t)","Stoc Al","Stoc Cu"]
+    measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
+    rows=[]
+    for i,(label,key) in enumerate(zip(labels,OPS)):
+        left=wrapped(measure,label,12,222)
+        right=wrapped(measure,extras.get(key) or "—",12,314,i<3)
+        rows.append((left,right,max(27,10+17*max(len(left),len(right))),i<3))
+    if extras.get("obs"):
+        left=wrapped(measure,"Observații",12,222)
+        right=wrapped(measure,extras["obs"],12,314)
+        rows.append((left,right,max(27,10+17*max(len(left),len(right))),False))
+    table_bottom=390+sum(row[2] for row in rows)
+    indicator_bottom=max(869,table_bottom+35)
+    summary_top=max(882,indicator_bottom+13)
+    height=summary_top+173
+    image=Image.new("RGB",(1491,height),"#071b2a")
+    gradient(image,(0,0,1491,height),"#0d304c","#071725")
     d=ImageDraw.Draw(image)
     for n in range(8):
         d.line((490+n*90,0,380+n*90,106),fill="#114366",width=5)
     with Image.open(ASSETS/"plan_header.jpg") as logo:
         image.paste(logo.crop((34,17,292,101)).resize((215,70)),(34,18))
     d=ImageDraw.Draw(image)
-    d.line((240,23,240,87),fill="#ecfaff",width=2)
-    text(d,(272,18),"PLUP",36,bold=True)
-    text(d,(273,62),"D E P A R T M E N T",17)
+    d.line((272,23,272,87),fill="#ecfaff",width=2)
+    text(d,(302,18),"PLUP",36,bold=True)
+    text(d,(303,62),"D E P A R T M E N T",17)
 
     def panel(box,top,bottom,outline="#3b779d",radius=12):
         x1,y1,x2,y2=box
@@ -208,7 +252,7 @@ def production_image(report,page=0):
     text(d,(44,651),"♻",42,"#6df3ad",True)
     text(d,(114,661),"Deșeu",27,bold=True)
     d.line((296,679,296,851),fill="#92b1c1")
-    d.line((679,679,679,851),fill="#92b1c1")
+    d.line((720,679,720,851),fill="#92b1c1")
     for y,code,label,value,color in [
         (728,"Al","Aluminiu",vals["wasteAl"],"#177fd2"),
         (775,"Cu","Cupru",vals["wasteCu"],"#ff7728"),
@@ -227,43 +271,39 @@ def production_image(report,page=0):
     for y,label,val,color in [(721,"Deșeu",r["waste"],"#5bf4a0"),
                                (789,"Material procesat",r["processed"],"#bcd8ef")]:
         d.ellipse((507,y-9,526,y+10),fill=color)
-        text(d,(541,y),label,16,anchor="lm")
+        text(d,(541,y),label,15,anchor="lm",width=170)
         text(d,(541,y+18),amount(val,1)+" t",18,anchor="lt")
 
-    panel((862,297,1474,869),"#113b5a","#0b2e49","#3985b5")
+    panel((862,297,1474,indicator_bottom),"#113b5a","#0b2e49","#3985b5")
     d=ImageDraw.Draw(image)
     text(d,(891,317),"▥",27,"#5aedac",True)
     text(d,(934,318),"Indicatori operaționali",21,bold=True)
     d.rounded_rectangle((1301,311,1456,347),radius=7,outline="#6eadd4",width=1)
     text(d,(1379,329),date_line,14,anchor="mm",width=143)
-    d.rounded_rectangle((877,359,1459,800),radius=8,fill="#0d2b43",outline="#3979a3")
+    d.rounded_rectangle((877,359,1459,table_bottom),radius=8,fill="#0d2b43",outline="#3979a3")
     d.rectangle((878,360,1458,390),fill="#14557e")
     text(d,(891,366),"Indicator",15,bold=True)
     text(d,(1270,366),"Valoare",15,bold=True)
-    d.line((1125,360,1125,800),fill="#3f6177")
-    labels=["Asumat / Realizat (t) + %","Realizat VS Status","Realizat vs Plan",
-            "Previz sch 1","Backlog Aluminiu (t)","Backlog Cupru (t)",
-            "SF așteptare – Rigid 1 (km)","SF așteptare – Rigid 2 (km)",
-            "SF așteptare – Rigid 3 (km)","SF așteptare – Multifir 8 Cai 1 (t)",
-            "SF așteptare – Multifir 8 Cai 2 (t)","SF așteptare – 16 Cai Niehoff (t)",
-            "SF așteptare – 16 Cai Beta 3 (t)","Stoc Al","Stoc Cu"]
-    for i,(label,key) in enumerate(zip(labels,OPS)):
-        yy=391+i*27
-        if i%2:d.rectangle((878,yy,1458,yy+27),fill="#153850")
-        d.line((878,yy+27,1458,yy+27),fill="#3a5c71")
-        text(d,(890,yy+13),label,13,anchor="lm",width=225)
-        text(d,(1291,yy+13),extras.get(key,"") or "—",13,
-             "#8ceab4" if i<3 else WHITE,i<3,anchor="mm",width=322)
-    panel((19,882,978,989),"#104a70","#093a5e","#42aee6")
+    yy=390
+    for i,(left,right,row_height,highlight) in enumerate(rows):
+        if i%2:d.rectangle((878,yy,1458,yy+row_height),fill="#153850")
+        for j,line in enumerate(left):
+            text(d,(890,yy+5+j*17),line,12,anchor="lt")
+        for j,line in enumerate(right):
+            text(d,(1135,yy+5+j*17),line,12,"#8ceab4" if highlight else WHITE,highlight,anchor="lt")
+        yy+=row_height
+        d.line((878,yy,1458,yy),fill="#3a5c71")
+    d.line((1125,360,1125,table_bottom),fill="#3f6177")
+    panel((19,summary_top,978,summary_top+107),"#104a70","#093a5e","#42aee6")
     d=ImageDraw.Draw(image)
-    d.ellipse((58,901,132,975),outline="#46d5ff",width=2)
-    text(d,(95,937),"⚙",37,bold=True,anchor="mm")
-    text(d,(177,902),"Total procesat",18)
-    text(d,(175,931),amount(r["processed"],1)+" t",39,bold=True)
-    d.line((482,901,482,970),fill="#85b9d4")
-    d.ellipse((589,901,663,975),outline="#46d5ff",width=2)
-    text(d,(626,936),"%",43,bold=True,anchor="mm")
-    text(d,(701,902),"Procent deșeu",18)
-    text(d,(702,931),amount(r["percent"],1)+"%",39,bold=True)
-    text(d,(42,1014),"N R G  C A B L E S    │    P L U P  D E P A R T M E N T",12)
+    d.ellipse((58,summary_top+19,132,summary_top+93),outline="#46d5ff",width=2)
+    text(d,(95,summary_top+55),"⚙",37,bold=True,anchor="mm")
+    text(d,(177,summary_top+20),"Total procesat",18)
+    text(d,(175,summary_top+49),amount(r["processed"],1)+" t",39,bold=True)
+    d.line((482,summary_top+19,482,summary_top+88),fill="#85b9d4")
+    d.ellipse((589,summary_top+19,663,summary_top+93),outline="#46d5ff",width=2)
+    text(d,(626,summary_top+54),"%",43,bold=True,anchor="mm")
+    text(d,(701,summary_top+20),"Procent deșeu",18)
+    text(d,(702,summary_top+49),amount(r["percent"],1)+"%",39,bold=True)
+    text(d,(42,summary_top+132),"N R G  C A B L E S    │    P L U P  D E P A R T M E N T",12)
     return png(image)

@@ -17,11 +17,10 @@
   const labelDate = key => new Intl.DateTimeFormat('ro-RO',{day:'2-digit',month:'long',year:'numeric'}).format(parseDate(key));
   const dayName = key => new Intl.DateTimeFormat('ro-RO',{weekday:'long'}).format(parseDate(key));
   const today=dateKey(new Date());
-  let state={mode:'weekday',date:today,values:{}};
+  let state={mode:'weekday',date:today,selectedDate:today,values:{}};
   const startFriday = key => shiftDate(key,(5-parseDate(key).getDay()+7)%7 === 0 ? 0 : (5-parseDate(key).getDay()+7)%7-7);
   const preferredWeekday = key => { const day=parseDate(key).getDay(); return day===0?shiftDate(key,1):day===5?shiftDate(key,-1):day===6?shiftDate(key,2):key; };
-  if(state.mode==='weekend') state.date=startFriday(state.date);
-  else state.date=preferredWeekday(state.date);
+  if(parseDate(today).getDay()>=5 || parseDate(today).getDay()===0){state.mode='weekend';state.date=startFriday(today);}
   function save(){}
   function dates(){return state.mode==='weekend'?[state.date,shiftDate(state.date,1),shiftDate(state.date,2)]:[state.date];}
   function valuesFor(date){return state.values[date]||{};}
@@ -44,9 +43,9 @@
     document.title=`Raport PLUP · ${weekend?'Weekend ':' '}${labelDate(ds[0])} · NRG Cables`;
   }
   function payload(){const current={};for(const date of dates()){const raw=valuesFor(date);current[date]=Object.fromEntries([...keys,...extraFields.map(x=>x[0])].map(key=>[key,raw[key]??'']));}return {mode:state.mode,date:state.date,values:current};}
-  function render(){document.querySelector(`input[name=mode][value=${state.mode}]`).checked=true;$('report-date').value=state.date;$('date-label').textContent=state.mode==='weekend'?'Prima zi (vineri)':'Data raportului';$('date-hint').textContent=state.mode==='weekend'?'Selectează o dată din weekend; raportul începe cu vinerea acelei săptămâni.':'Selectează o zi de luni până joi. Pentru vineri–duminică folosește modul Weekend.';setupInputs();renderReport();save();}
-  document.querySelectorAll('input[name=mode]').forEach(input=>input.addEventListener('change',()=>{state.mode=input.value;state.date=state.mode==='weekend'?startFriday(state.date):preferredWeekday(state.date);render();}));
-  $('report-date').addEventListener('change',e=>{if(!e.target.value)return;state.date=state.mode==='weekend'?startFriday(e.target.value):preferredWeekday(e.target.value);render();});
+  function render(){document.querySelector(`input[name=mode][value=${state.mode}]`).checked=true;$('report-date').value=state.selectedDate||state.date;$('date-label').textContent='Data aleasă';$('date-hint').textContent=state.mode==='weekend'?`Raportul include vineri–duminică (${dates().map(labelDate).join(' · ')}). Ziua aleasă rămâne ${labelDate(state.selectedDate||state.date)}.`:'Raport pentru ziua selectată, de luni până joi.';setupInputs();renderReport();save();}
+  document.querySelectorAll('input[name=mode]').forEach(input=>input.addEventListener('change',()=>{state.mode=input.value;const selected=state.selectedDate||state.date;state.date=state.mode==='weekend'?startFriday(selected):preferredWeekday(selected);state.selectedDate=state.mode==='weekend'?selected:state.date;render();}));
+  $('report-date').addEventListener('change',e=>{if(!e.target.value)return;state.selectedDate=e.target.value;const day=parseDate(e.target.value).getDay();if(day===5||day===6||day===0)state.mode='weekend';state.date=state.mode==='weekend'?startFriday(e.target.value):e.target.value;render();});
   $('entry-list').addEventListener('input',e=>{const input=e.target;if(!input.matches('[data-key]'))return;const raw=input.value.trim();if(keys.includes(input.dataset.key)&&raw&&!/^\d{0,7}(?:[.,]\d{0,4})?$/.test(raw)){input.value=state.values[input.dataset.date]?.[input.dataset.key]??'';return;}const date=input.dataset.date;state.values[date]??={};state.values[date][input.dataset.key]=raw;save();renderReport();});
   $('reset-button').addEventListener('click',()=>{for(const date of dates())delete state.values[date];render();});
   $('save-report-button').addEventListener('click',async()=>{const button=$('save-report-button');button.disabled=true;$('api-status').textContent='Se salvează…';try{const response=await window.PLUPFetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload()),credentials:'same-origin'});const body=await response.json();if(!response.ok)throw new Error(body.error||'Salvarea a eșuat.');$('api-status').textContent='Raport salvat în istoric.';}catch(e){$('api-status').textContent=e.message;}finally{button.disabled=false;}});
@@ -54,17 +53,18 @@
     const button=$('generate-report-image'),gallery=$('report-images');button.disabled=true;gallery.replaceChildren();$('api-status').textContent='Se generează imaginile…';
     try {
       const labels=state.mode==='weekend'?['Vineri','Sâmbătă','Duminică','Total weekend']:['Raport zilnic'];
-      for(let i=0;i<labels.length;i++){
+      const order=state.mode==='weekend'?[...Array(labels.length).keys()].sort((a,b)=>a===dates().indexOf(state.selectedDate)?-1:b===dates().indexOf(state.selectedDate)?1:a-b):[0];
+      for(const i of order){
         const response=await window.PLUPFetch(`/api/render?page=${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload()),credentials:'same-origin'});
         if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||'Generarea nu este disponibilă.');}
         const blob=await response.blob();if(blob.type!=='image/png')throw Error('Răspuns imagine invalid.');
         const url=URL.createObjectURL(blob),item=document.createElement('div'),title=document.createElement('strong'),img=document.createElement('img'),link=document.createElement('a');
-        item.className='image-result';title.textContent=labels[i];img.src=url;img.alt=`Previzualizare ${labels[i]} PLUP`;link.href=url;link.download=`NRG_PLUP_${state.date}_${i+1}.png`;link.textContent='Descarcă PNG ↓';item.append(title,img,link);gallery.append(item);
+        item.className='image-result';title.textContent=`${labels[i]} · ${i<dates().length?labelDate(dates()[i]):'total'}`;img.src=url;img.alt=`Previzualizare ${labels[i]} PLUP`;link.href=url;link.download=`NRG_PLUP_${i<dates().length?dates()[i]:state.date+'_total'}.png`;link.textContent='Descarcă PNG ↓';item.append(title,img,link);gallery.append(item);
       }
       $('api-status').textContent='Imaginile sunt gata. Pe iPhone, poți și apăsa lung pe imagine pentru a o salva.';
     }catch(e){$('api-status').textContent=e.message;}finally{button.disabled=false;}
   });
   if(matchMedia('(hover:hover) and (pointer:fine)').matches){document.querySelectorAll('.panel').forEach(panel=>panel.addEventListener('pointermove',e=>{const r=panel.getBoundingClientRect();panel.style.setProperty('--cursor-x',`${e.clientX-r.left}px`);panel.style.setProperty('--cursor-y',`${e.clientY-r.top}px`);}));}
-  window.PLUPReport={setMode(mode){state.mode=mode;state.date=mode==='weekend'?startFriday(state.date):preferredWeekday(state.date);render();},load(data){state={mode:data.mode,date:data.date,values:data.values};render();},payload};
+  window.PLUPReport={setMode(mode){state.mode=mode;const selected=state.selectedDate||state.date;state.date=mode==='weekend'?startFriday(selected):preferredWeekday(selected);state.selectedDate=mode==='weekend'?selected:state.date;render();},load(data){state={mode:data.mode,date:data.date,selectedDate:data.selectedDate||data.date,values:data.values};render();},payload};
   render();
 })();
