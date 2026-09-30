@@ -151,9 +151,9 @@ def production_image(report,page=0,theme="light"):
     if extras.get("obs"):
         indicators.append((['Observații'],wrapped(measure,extras['obs'],15,890),max(38,13+22*len(wrapped(measure,extras['obs'],15,890)))))
     table_height=sum(x[2] for x in indicators)
-    table_start=568
+    table_start=742
     bottom=table_start+51+table_height if indicators else 0
-    height=max(770,bottom+72)
+    height=max(896,bottom+72)
     image=Image.new("RGB",(1491,height),p["bg"])
     d=ImageDraw.Draw(image)
     brand(d,1491,stamp,"RAPORT",p)
@@ -179,13 +179,37 @@ def production_image(report,page=0,theme="light"):
     for x,title,value in ((64,"TOTAL PREDAT AL + CU",r["handed"]),(544,"BACKLOG PREDAT",r["backlog"]),(1041,"TOTAL PROCESAT",r["processed"])):
         label(d,(x,393),title,13,p["muted"],bold=True)
         label(d,(x,416),amount(value,2)+" t",27,p["ink"],bold=True,width=320)
-    d.rounded_rectangle((42,479,1449,548),radius=10,fill=p["green"])
-    label(d,(64,489),"DEȘEU AL / CU",13,p["muted"],bold=True)
-    label(d,(64,512),f'{amount(vals["wasteAl"],2)} t / {amount(vals["wasteCu"],2)} t',19,p["ink"],bold=True)
-    label(d,(544,489),"TOTAL DEȘEU",13,p["muted"],bold=True)
-    label(d,(544,512),amount(r["waste"],2)+" t",19,p["ink"],bold=True)
-    label(d,(1041,489),"PROCENT DEȘEU",13,p["muted"],bold=True)
-    label(d,(1041,509),amount(r["percent"],1)+"%",28,p["ink"],bold=True)
+    # Restore the report's visual summaries: a real waste ratio and AL/CU bars.
+    d.rounded_rectangle((42,479,731,722),radius=10,fill=p["green"],outline=p["line"])
+    label(d,(65,495),"DEȘEU · MATERIAL PROCESAT",17,p["ink"],bold=True)
+    label(d,(65,546),"Aluminiu",14,p["muted"])
+    label(d,(65,571),amount(vals["wasteAl"],2)+" t",22,p["ink"],bold=True,width=170)
+    label(d,(65,613),"Cupru",14,p["muted"])
+    label(d,(65,638),amount(vals["wasteCu"],2)+" t",22,p["ink"],bold=True,width=170)
+    d.line((246,532,246,695),fill=p["line"],width=2)
+    ring=(338,525,520,707)
+    ring_base="#b5c9d6" if theme=="light" else "#356477"
+    ring_value="#20a965" if theme=="light" else "#55e19b"
+    d.arc(ring,0,359,fill=ring_base,width=26)
+    share=max(0,min(100,float(r["percent"])))
+    if share:d.arc(ring,-90,-90+max(2,round(3.6*share)),fill=ring_value,width=26)
+    label(d,(429,589),amount(r["percent"],1)+"%",28,p["ink"],bold=True,anchor="mm",width=146)
+    label(d,(429,619),"procent deșeu",13,p["muted"],anchor="mm")
+    label(d,(552,554),"Total deșeu",14,p["muted"])
+    label(d,(552,579),amount(r["waste"],2)+" t",20,p["ink"],bold=True,width=150)
+    label(d,(552,624),"Total procesat",14,p["muted"])
+    label(d,(552,649),amount(r["processed"],2)+" t",20,p["ink"],bold=True,width=150)
+
+    d.rounded_rectangle((749,479,1449,722),radius=10,fill=p["stripe"],outline=p["line"])
+    label(d,(772,495),"REPARTIZARE PREDARE · AL / CU",17,p["ink"],bold=True)
+    maximum=max(float(vals["al"]),float(vals["cu"]),1)
+    for y,name,value,bar in ((562,"Aluminiu",vals["al"],p["accent"]),
+                              (647,"Cupru",vals["cu"],"#27ae78" if theme=="light" else "#4fd0a1")):
+        label(d,(772,y-27),name,15,p["muted"])
+        label(d,(1417,y-27),amount(value,2)+" t",16,p["ink"],bold=True,anchor="ra",width=180)
+        d.rounded_rectangle((772,y,1419,y+24),radius=9,fill=p["head"])
+        bar_width=round(647*float(value)/maximum)
+        if bar_width:d.rounded_rectangle((772,y,772+max(9,bar_width),y+24),radius=9,fill=bar)
     if indicators:
         d.rounded_rectangle((42,table_start,1449,bottom),radius=10,fill=p["paper"],outline=p["line"])
         d.rectangle((43,table_start+1,1448,table_start+51),fill=p["head"])

@@ -48,6 +48,7 @@ Valorile din exemplul de mai sus sunt demonstrative; folosește secrete generate
 - Zilnic: luni–joi, valori în tone, procent deșeu și indicatori operaționali.
 - Weekend: vineri–duminică separat, trei imagini zilnice și imaginea totalului.
 - Aspect corporativ luminos inspirat de tabelul PLUP: antet NRG Cables, tabel aerisit și benzi AL/CU/total. Butonul Light/Dark din antet schimbă interfața și tema imaginilor PNG generate; alegerea rămâne salvată doar în browserul utilizatorului. Varianta întunecată folosește albastru petrol și contraste pentru totaluri.
+- Rapoartele pentru o zi și pentru weekend păstrează reprezentările vizuale: diagramă circulară a procentului de deșeu și bare AL/CU pentru producția predată, atât în previzualizarea aplicației, cât și în fiecare PNG.
 - Istoric: fiecare salvare creează o intrare nouă, cu dată și ora salvării; o intrare poate fi redeschisă.
 
 Imaginile sunt generate pe server din date validate. Pe iOS, imaginea se poate salva prin apăsare lungă din previzualizare, dacă navigatorul nu descarcă direct fișierul.

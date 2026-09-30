@@ -39,6 +39,16 @@
     $('total-waste').innerHTML=`${fmt(total.waste)} <small>t</small>`;
     $('total-processed').innerHTML=`${fmt(total.processed)} <small>t</small>`;
     $('total-percent').textContent=fmt(total.processed?total.waste/total.processed*100:0,1)+'%';
+    const al=ds.reduce((sum,date)=>sum+number(valuesFor(date).al),0),cu=ds.reduce((sum,date)=>sum+number(valuesFor(date).cu),0),max=Math.max(al,cu,1);
+    const percent=total.processed?Math.min(100,total.waste/total.processed*100):0;
+    $('paper-donut').style.setProperty('--waste-angle',`${percent*3.6}deg`);
+    $('paper-donut-percent').textContent=fmt(percent,1)+'%';
+    $('paper-chart-waste').textContent=fmt(total.waste)+' t';
+    $('paper-chart-processed').textContent=fmt(total.processed)+' t';
+    $('paper-bar-al').style.width=`${al/max*100}%`;
+    $('paper-bar-cu').style.width=`${cu/max*100}%`;
+    $('paper-bar-al-value').textContent=fmt(al)+' t';
+    $('paper-bar-cu-value').textContent=fmt(cu)+' t';
     document.title=`Raport PLUP · ${weekend?'Weekend ':' '}${labelDate(ds[0])} · NRG Cables`;
   }
   function payload(){const current={};for(const date of dates()){const raw=valuesFor(date);current[date]=Object.fromEntries([...keys,...extraFields.map(x=>x[0])].map(key=>[key,raw[key]??'']));}return {mode:state.mode,date:state.date,values:current};}
