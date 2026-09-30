@@ -5,9 +5,9 @@
   async function checkAccess(){try{const response=await fetch('/api/session',{credentials:'same-origin'});const session=await response.json();if(!response.ok)throw Error();csrf=session.csrf||'';if(session.authenticated){$('login-gate').hidden=true;}else{$('login-loading').hidden=true;$('login-form').hidden=false;}}catch{$('login-loading').textContent='Serverul nu este disponibil. Reîncearcă după ce revine conexiunea.';}}
   $('login-form').addEventListener('submit',async e=>{e.preventDefault();$('login-status').textContent='Se verifică…';try{const response=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('login-password').value}),credentials:'same-origin'});const body=await response.json();if(!response.ok)throw Error(body.error||'Acces refuzat.');csrf=body.csrf;$('login-password').value='';$('login-gate').hidden=true;}catch(error){$('login-status').textContent=error.message;}});
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const names={plan:'Plan de producție',weekday:'Raport zilnic',weekend:'Raport weekend'};
+  const names={plan:'Plan de producție',weekday:'Raport zilnic',weekend:'Raport weekend',forecast:'Previz zilnic'};
   function show(view){
-    $('dashboard-view').hidden=view!=='dashboard';$('report-view').hidden=!['weekday','weekend'].includes(view);$('report-toolbar').hidden=!['weekday','weekend'].includes(view);$('plan-view').hidden=view!=='plan';$('history-view').hidden=view!=='history';
+    $('dashboard-view').hidden=view!=='dashboard';$('report-view').hidden=!['weekday','weekend'].includes(view);$('report-toolbar').hidden=!['weekday','weekend'].includes(view);$('plan-view').hidden=view!=='plan';$('forecast-view').hidden=view!=='forecast';$('history-view').hidden=view!=='history';
     if(view==='weekday'||view==='weekend'){window.PLUPReport.setMode(view);$('report-toolbar-title').textContent=names[view];}
     if(view==='history')history();window.scrollTo({top:0,behavior:'instant'});
   }
@@ -26,7 +26,7 @@
   document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)show(b.dataset.view);});
   $('refresh-history').addEventListener('click',()=>history());
   $('more-history').addEventListener('click',()=>history(true));
-  $('history-list').addEventListener('click',async e=>{const b=e.target.closest('[data-load]');if(!b)return;$('history-status').textContent='Se deschide raportul…';try{const response=await window.PLUPFetch('/api/reports/'+encodeURIComponent(b.dataset.load),{credentials:'same-origin'});if(!response.ok)throw Error('Raportul nu a putut fi deschis.');const record=await response.json();if(record.mode==='plan'){window.PLUPPlan.load(record.payload);show('plan');}else{show(record.mode);window.PLUPReport.load(record.payload,record.id);}$('history-status').textContent='';}catch(err){$('history-status').textContent=err.message;}});
+  $('history-list').addEventListener('click',async e=>{const b=e.target.closest('[data-load]');if(!b)return;$('history-status').textContent='Se deschide raportul…';try{const response=await window.PLUPFetch('/api/reports/'+encodeURIComponent(b.dataset.load),{credentials:'same-origin'});if(!response.ok)throw Error('Raportul nu a putut fi deschis.');const record=await response.json();if(record.mode==='plan'){window.PLUPPlan.load(record.payload);show('plan');}else if(record.mode==='forecast'){window.PLUPForecast.load(record.payload,record.id);show('forecast');}else{show(record.mode);window.PLUPReport.load(record.payload,record.id);}$('history-status').textContent='';}catch(err){$('history-status').textContent=err.message;}});
   show('dashboard');
   checkAccess();
 })();

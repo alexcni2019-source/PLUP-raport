@@ -16,8 +16,8 @@ import hmac
 import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
-from server.corporate import plan_image, production_image
-from server.ocr import import_plan, ImportError as PlanImportError
+from server.corporate import plan_image, production_image, forecast_image
+from server.ocr import import_plan, import_forecast, ImportError as PlanImportError
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,6 +29,7 @@ ZERO = Decimal("0")
 MAX_BYTES = 262144
 PLAN_FIELDS = ("client","product","planned","handed","wire","spool","bar","vane","cable","mi","armored","mf","goods","notes")
 PLAN_NUMERIC = ("planned","handed","wire","spool","bar","vane","cable","mi","armored","mf","goods")
+FORECAST_FIELDS = ("material","product","km","tons","client","measure","status","notes")
 DB_PATH = Path(os.environ.get("PLUP_DB_PATH", str(ROOT / "data" / "plup.sqlite3")))
 PASSWORD = os.environ.get("PLUP_PASSWORD", "")
 SESSION_SECRET = os.environ.get("PLUP_SESSION_SECRET", "")
@@ -130,20 +131,63 @@ def process_plan(data: object) -> dict:
     return {"mode":"plan","date":start.isoformat(),"week":data["week"].strip(),"incoming":read_amount(data["incoming"]),"rows":rows,"totals":totals}
 
 
+def process_forecast(data: object) -> dict:
+    if not isinstance(data,dict) or set(data)!={"mode","date","rows"} or data["mode"]!="forecast":
+        raise InvalidReport("Structură invalidă a previzului.")
+    try:start=date.fromisoformat(data["date"])
+    except (TypeError,ValueError) as exc:raise InvalidReport("Data previzului este invalidă.") from exc
+    if not 2020<=start.year<=2100 or not isinstance(data["rows"],list) or not 1<=len(data["rows"])<=100:
+        raise InvalidReport("Previzul trebuie să conțină între 1 și 100 produse.")
+    totals={key:{"km":ZERO,"tons":ZERO} for key in ("AL","CU")}
+    rows=[]
+    for raw in data["rows"]:
+        if not isinstance(raw,dict) or set(raw)!=set(FORECAST_FIELDS) or raw["material"] not in ("AL","CU"):
+            raise InvalidReport("Rând invalid în previz.")
+        row={"material":raw["material"],"km":read_amount(raw["km"]),"tons":read_amount(raw["tons"])}
+        for key in ("product","client","measure","status","notes"):
+            value=raw[key]
+            if not isinstance(value,str) or len(value)>120 or any(ord(char)<32 for char in value):
+                raise InvalidReport("Text invalid în previz.")
+            row[key]=value.strip()
+        if not row["product"]:
+            raise InvalidReport("Completează produsul pentru fiecare rând din previz.")
+        totals[row["material"]]["km"]+=row["km"]
+        totals[row["material"]]["tons"]+=row["tons"]
+        rows.append(row)
+    return {"mode":"forecast","date":start.isoformat(),"rows":rows,"totals":totals}
+
+
 def database():
     DB_PATH.parent.mkdir(parents=True,exist_ok=True)
     conn=sqlite3.connect(DB_PATH,timeout=10)
     conn.row_factory=sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=10000")
-    conn.execute("CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK(mode IN ('weekday','weekend','plan')), report_date TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)")
+    conn.execute("CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK(mode IN ('weekday','weekend','plan','forecast')), report_date TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)")
+    schema=conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='reports'").fetchone()[0]
+    if "'forecast'" not in schema:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            schema=conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='reports'").fetchone()[0]
+            if "'forecast'" in schema:
+                conn.commit()
+            else:
+                conn.execute("DROP TABLE IF EXISTS reports_new")
+                conn.execute("CREATE TABLE reports_new (id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK(mode IN ('weekday','weekend','plan','forecast')), report_date TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)")
+                conn.execute("INSERT INTO reports_new SELECT id,mode,report_date,created_at,payload FROM reports")
+                conn.execute("DROP TABLE reports")
+                conn.execute("ALTER TABLE reports_new RENAME TO reports")
+                conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
     conn.execute("CREATE INDEX IF NOT EXISTS reports_recent ON reports(created_at DESC)")
     return conn
 
 
 def save_report(payload):
     if not isinstance(payload,dict): raise InvalidReport("Raport invalid.")
-    item=process_plan(payload) if payload.get("mode")=="plan" else process(payload)
+    item=process_plan(payload) if payload.get("mode")=="plan" else process_forecast(payload) if payload.get("mode")=="forecast" else process(payload)
     record={"id":str(uuid.uuid4()),"mode":item["mode"],"date":item["date"],"created_at":datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")}
     conn=database()
     try:
@@ -154,7 +198,7 @@ def save_report(payload):
 
 
 def update_report(identifier, payload):
-    item=process_plan(payload) if isinstance(payload,dict) and payload.get("mode")=="plan" else process(payload)
+    item=process_plan(payload) if isinstance(payload,dict) and payload.get("mode")=="plan" else process_forecast(payload) if isinstance(payload,dict) and payload.get("mode")=="forecast" else process(payload)
     conn=database()
     try:
         with conn:
@@ -252,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts=urlsplit(self.path);path=parts.path
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import","/api/forecast/import"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -261,15 +305,15 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        limit=8_000_200 if path=="/api/plan/import" else MAX_BYTES
+        limit=8_000_200 if path in ("/api/plan/import","/api/forecast/import") else MAX_BYTES
         if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
-            if path=="/api/plan/import":
+            if path in ("/api/plan/import","/api/forecast/import"):
                 if not isinstance(body,dict) or set(body)!={"image"}:
                     raise PlanImportError("Imagine invalidă.")
-                result=import_plan(body["image"])
+                result=import_plan(body["image"]) if path=="/api/plan/import" else import_forecast(body["image"])
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path=="/api/login":
                 key=self.client_address[0];now=time.monotonic()
@@ -286,7 +330,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=="/api/reports":
                 saved=save_report(body)
                 self.respond(201,json.dumps(saved).encode(),"application/json; charset=utf-8");return
-            report=process_plan(body) if isinstance(body,dict) and body.get("mode")=="plan" else process(body)
+            report=process_plan(body) if isinstance(body,dict) and body.get("mode")=="plan" else process_forecast(body) if isinstance(body,dict) and body.get("mode")=="forecast" else process(body)
         except (ValueError,UnicodeDecodeError) as exc:
             self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) else "Raport invalid.");return
         if path=="/api/render":
@@ -294,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
                 params=parse_qs(parts.query)
                 theme=params.get("theme",["light"])[0]
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
-                page=int(params.get("page",[0])[0]);image=plan_image(report,theme) if report["mode"]=="plan" else production_image(report,page,theme)
+                page=int(params.get("page",[0])[0]);image=plan_image(report,theme) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1") if report["mode"]=="forecast" and page==0 else production_image(report,page,theme)
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
             self.respond(200,image,"image/png")
         else:

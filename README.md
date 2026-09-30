@@ -47,8 +47,10 @@ Valorile din exemplul de mai sus sunt demonstrative; folosește secrete generate
 - Capturile Excel late și compacte (inclusiv 1600 × 382 px) sunt citite după grila fixă AL/CU. La import, subtotalurile tipărite sunt comparate cu cifrele extrase; valorile marcate se verifică înainte de confirmare. Pentru fidelitatea cifrelor mici, captura PNG este transmisă fără conversie la JPEG dacă rămâne sub 6 MB.
 - Zilnic: luni–joi, valori în tone, procent deșeu și indicatori operaționali.
 - Weekend: vineri–duminică separat, trei imagini zilnice și imaginea totalului.
+- Previz zilnic: produse AL/CU, kilometri, tone, client, măsurări, stadiu și observații, cu totaluri calculate. Imaginea PNG poate include coloana „Stadiu” pentru producție sau o poate ascunde pentru direcțiune, fără a șterge valorile din istoric.
+- Import previz: încarcă imaginea completă sau lipește captura din clipboard; OCR extrage un draft editabil și compară totalul AL tipărit cu tonajul citit. Celulele nesigure sunt marcate, iar confirmarea este obligatorie înainte de salvare și export. Verifică atent zecimalele și observațiile; imaginea nu este stocată.
 - Aspect corporativ luminos inspirat de tabelul PLUP: antet NRG Cables, tabel aerisit și benzi AL/CU/total. Butonul Light/Dark din antet schimbă interfața și tema imaginilor PNG generate; alegerea rămâne salvată doar în browserul utilizatorului. Varianta întunecată folosește albastru petrol și contraste pentru totaluri.
-- Rapoartele pentru o zi și pentru weekend păstrează reprezentările vizuale: diagramă circulară a procentului de deșeu și bare AL/CU pentru producția predată, atât în previzualizarea aplicației, cât și în fiecare PNG.
+- Rapoartele pentru o zi și pentru weekend păstrează reprezentările vizuale: diagramă circulară a procentului de deșeu și bare AL/CU și backlog raportat la totalul predat, atât în previzualizarea aplicației, cât și în fiecare PNG.
 - Istoric: fiecare salvare creează o intrare nouă, cu dată și ora salvării; o intrare poate fi redeschisă.
 
 Imaginile sunt generate pe server din date validate. Pe iOS, imaginea se poate salva prin apăsare lungă din previzualizare, dacă navigatorul nu descarcă direct fișierul.

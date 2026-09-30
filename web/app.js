@@ -49,6 +49,10 @@
     $('paper-bar-cu').style.width=`${cu/max*100}%`;
     $('paper-bar-al-value').textContent=fmt(al)+' t';
     $('paper-bar-cu-value').textContent=fmt(cu)+' t';
+    const backlogRatio=total.handed?total.backlog/total.handed*100:0;
+    $('paper-bar-backlog').style.width=`${Math.min(100,backlogRatio)}%`;
+    $('paper-bar-backlog-value').textContent=`${fmt(total.backlog)} t / ${fmt(total.handed)} t`;
+    $('paper-bar-backlog-percent').textContent=total.handed?`${fmt(backlogRatio,1)}% din totalul predat`:'Fără tone predate';
     document.title=`Raport PLUP · ${weekend?'Weekend ':' '}${labelDate(ds[0])} · NRG Cables`;
   }
   function payload(){const current={};for(const date of dates()){const raw=valuesFor(date);current[date]=Object.fromEntries([...keys,...extraFields.map(x=>x[0])].map(key=>[key,raw[key]??'']));}return {mode:state.mode,date:state.date,values:current};}

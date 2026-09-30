@@ -151,9 +151,9 @@ def production_image(report,page=0,theme="light"):
     if extras.get("obs"):
         indicators.append((['Observații'],wrapped(measure,extras['obs'],15,890),max(38,13+22*len(wrapped(measure,extras['obs'],15,890)))))
     table_height=sum(x[2] for x in indicators)
-    table_start=742
+    table_start=815
     bottom=table_start+51+table_height if indicators else 0
-    height=max(896,bottom+72)
+    height=max(970,bottom+72)
     image=Image.new("RGB",(1491,height),p["bg"])
     d=ImageDraw.Draw(image)
     brand(d,1491,stamp,"RAPORT",p)
@@ -180,7 +180,7 @@ def production_image(report,page=0,theme="light"):
         label(d,(x,393),title,13,p["muted"],bold=True)
         label(d,(x,416),amount(value,2)+" t",27,p["ink"],bold=True,width=320)
     # Restore the report's visual summaries: a real waste ratio and AL/CU bars.
-    d.rounded_rectangle((42,479,731,722),radius=10,fill=p["green"],outline=p["line"])
+    d.rounded_rectangle((42,479,731,795),radius=10,fill=p["green"],outline=p["line"])
     label(d,(65,495),"DEȘEU · MATERIAL PROCESAT",17,p["ink"],bold=True)
     label(d,(65,546),"Aluminiu",14,p["muted"])
     label(d,(65,571),amount(vals["wasteAl"],2)+" t",22,p["ink"],bold=True,width=170)
@@ -199,9 +199,13 @@ def production_image(report,page=0,theme="light"):
     label(d,(552,579),amount(r["waste"],2)+" t",20,p["ink"],bold=True,width=150)
     label(d,(552,624),"Total procesat",14,p["muted"])
     label(d,(552,649),amount(r["processed"],2)+" t",20,p["ink"],bold=True,width=150)
+    ratio=float(r["backlog"])/float(r["handed"])*100 if r["handed"] else 0
+    d.line((64,724,709,724),fill=p["line"])
+    label(d,(65,739),"Backlog / total predat",14,p["muted"])
+    label(d,(552,736),(amount(Decimal(str(ratio)),1)+"%") if r["handed"] else "—",22,p["ink"],bold=True,width=155)
 
-    d.rounded_rectangle((749,479,1449,722),radius=10,fill=p["stripe"],outline=p["line"])
-    label(d,(772,495),"REPARTIZARE PREDARE · AL / CU",17,p["ink"],bold=True)
+    d.rounded_rectangle((749,479,1449,795),radius=10,fill=p["stripe"],outline=p["line"])
+    label(d,(772,495),"PREDARE ȘI BACKLOG",17,p["ink"],bold=True)
     maximum=max(float(vals["al"]),float(vals["cu"]),1)
     for y,name,value,bar in ((562,"Aluminiu",vals["al"],p["accent"]),
                               (647,"Cupru",vals["cu"],"#27ae78" if theme=="light" else "#4fd0a1")):
@@ -210,6 +214,12 @@ def production_image(report,page=0,theme="light"):
         d.rounded_rectangle((772,y,1419,y+24),radius=9,fill=p["head"])
         bar_width=round(647*float(value)/maximum)
         if bar_width:d.rounded_rectangle((772,y,772+max(9,bar_width),y+24),radius=9,fill=bar)
+    label(d,(772,705),"Backlog / total predat",15,p["muted"])
+    label(d,(1417,705),f'{amount(r["backlog"],2)} t / {amount(r["handed"],2)} t',16,p["ink"],bold=True,anchor="ra",width=360)
+    d.rounded_rectangle((772,735,1419,759),radius=9,fill=p["head"])
+    width=round(647*min(1,ratio/100))
+    if width:d.rounded_rectangle((772,735,772+max(9,width),759),radius=9,fill="#e2a638")
+    label(d,(772,765),f'{amount(Decimal(str(ratio)),1)}% din totalul predat' if r["handed"] else "Fără tone predate",12,p["muted"])
     if indicators:
         d.rounded_rectangle((42,table_start,1449,bottom),radius=10,fill=p["paper"],outline=p["line"])
         d.rectangle((43,table_start+1,1448,table_start+51),fill=p["head"])
@@ -224,4 +234,92 @@ def production_image(report,page=0,theme="light"):
             d.line((43,yy,1448,yy),fill=p["line"])
         d.line((545,table_start+51,545,bottom),fill=p["line"])
     label(d,(43,height-53),"NRG Cables   |   PLUP Department",13,p["muted"])
+    return png(image)
+
+
+def forecast_image(forecast,theme="light",show_status=True):
+    p=DARK if theme=="dark" else LIGHT
+    columns=(30,75,450,568,686,879,1089,1236,1644) if show_status else (30,75,490,620,750,970,1190,1644)
+    keys=["product","km","tons","client","measure"]+(["status"] if show_status else [])+["notes"]
+    headers={"product":"PRODUS","km":"KM","tons":"TONE","client":"CLIENT",
+             "measure":"MĂSURĂRI","status":"STADIU","notes":"OBSERVAȚII"}
+    al=[row for row in forecast["rows"] if row["material"]=="AL"]
+    cu=[row for row in forecast["rows"] if row["material"]=="CU"]
+    measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
+    def layout(row):
+        wraps={key:wrapped(measure,row[key],13,columns[i+2]-columns[i+1]-18)
+               for i,key in enumerate(keys) if key in ("product","notes","measure")}
+        return wraps,max(38,12+18*max((len(q) for q in wraps.values()),default=1))
+    layouts=[layout(row) for row in al+cu]
+    body=sum(height for _,height in layouts)
+    table_end=153+body+43+14+(39 if not cu else 0)+43+47
+    height=max(470,table_end+38)
+    image=Image.new("RGB",(1672,height),p["bg"])
+    d=ImageDraw.Draw(image)
+    stamp=date.fromisoformat(forecast["date"]).strftime("%d.%m.%Y")
+    brand(d,1672,stamp,"PREVIZ ZILNIC",p)
+    d.rounded_rectangle((14,87,1658,height-22),radius=14,fill=p["paper"],outline=p["line"])
+    d.rectangle((30,103,1644,153),fill=p["head"])
+    for i,key in enumerate(keys):
+        left,right=columns[i+1],columns[i+2]
+        label(d,((left+right)/2,128),headers[key],14,p["ink"],bold=True,anchor="mm",width=right-left-8)
+    y=153;layout_iter=iter(layouts)
+
+    def rows(material,items):
+        nonlocal y
+        for i,row in enumerate(items):
+            lines,row_height=next(layout_iter)
+            if i%2:d.rectangle((30,y,1644,y+row_height),fill=p["stripe"])
+            if i==0:
+                d.rectangle((30,y,75,y+row_height),fill=p["blue"] if material=="AL" else p["green"])
+                label(d,(40,y+row_height/2),material+":",14,p["ink"],bold=True,anchor="lm")
+            for j,key in enumerate(keys):
+                left,right=columns[j+1],columns[j+2]
+                if key=="status":
+                    status=row[key].strip()
+                    if status:
+                        is_done="PREDAT" in status.upper()
+                        d.rounded_rectangle((left+8,y+5,right-8,y+row_height-5),radius=12,
+                                            fill=p["success_bg"] if is_done else p["pill"])
+                        label(d,((left+right)/2,y+row_height/2),status,12,p["success"] if is_done else p["ink"],bold=True,anchor="mm",width=right-left-23)
+                elif key in lines:
+                    for n,line in enumerate(lines[key]):
+                        label(d,(left+8,y+(row_height-18*len(lines[key]))/2+n*18),line,13,p["ink"],width=right-left-16)
+                elif key in ("km","tons"):
+                    label(d,((left+right)/2,y+row_height/2),amount(row[key]),14,p["ink"],anchor="mm",width=right-left-12)
+                else:
+                    label(d,((left+right)/2,y+row_height/2),row[key],13,p["ink"],anchor="mm",width=right-left-12)
+            y+=row_height
+            d.line((30,y,1644,y),fill=p["line"])
+
+    def total_band(title,fill,totals,height):
+        nonlocal y
+        d.rectangle((30,y,1644,y+height),fill=fill)
+        label(d,(42,y+height/2),title,16,p["ink"],bold=True,anchor="lm",width=columns[2]-55)
+        for key in ("km","tons"):
+            index=keys.index(key)
+            left,right=columns[index+1],columns[index+2]
+            label(d,((left+right)/2,y+height/2),amount(totals[key]),16,p["ink"],bold=True,anchor="mm")
+        y+=height
+
+    rows("AL",al)
+    al_end=y
+    total_band("TOTAL AL",p["blue"],forecast["totals"]["AL"],43)
+    y+=14
+    if not cu:
+        d.rectangle((30,y,75,y+39),fill=p["green"])
+        label(d,(40,y+19),"CU:",14,p["ink"],bold=True,anchor="lm")
+        y+=39
+    cu_start=y
+    rows("CU",cu)
+    cu_end=y
+    total_band("TOTAL CU",p["green"],forecast["totals"]["CU"],43)
+    total_band("TOTAL AL + CU",p["yellow"],
+               {key:forecast["totals"]["AL"][key]+forecast["totals"]["CU"][key] for key in ("km","tons")},47)
+    for x in columns:
+        if x in (columns[1],columns[2]):
+            d.line((x,103,x,al_end),fill=p["line"])
+            if cu_end>cu_start:d.line((x,cu_start,x,cu_end),fill=p["line"])
+        else:d.line((x,103,x,y),fill=p["line"])
+    d.line((30,153,1644,153),fill=p["line"])
     return png(image)

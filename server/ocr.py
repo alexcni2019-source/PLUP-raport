@@ -16,7 +16,7 @@ import re
 import subprocess
 import threading
 import time
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps, ImageStat, UnidentifiedImageError
 
 MAX_IMAGE_BYTES = 6_000_000
 Image.MAX_IMAGE_PIXELS = 20_000_000
@@ -237,6 +237,131 @@ def import_plan(encoded):
         return _extract_compact(image) if image.width/image.height>2.9 else _extract(image)
     finally:
         OCR_SLOT.release()
+
+
+def _forecast_cell(image, bounds, *, numeric=False):
+    x1,y1,x2,y2=(round(v*image.width/1600) if i%2==0 else round(v*image.height/900)
+                 for i,v in enumerate(bounds))
+    tile=image.crop((x1+4,y1+3,x2-4,y2-3)).convert("L")
+    if tile.width<9 or tile.height<8:return ""
+    if ImageStat.Stat(tile).median[0]<125:tile=ImageOps.invert(tile)
+    tile=ImageOps.autocontrast(tile)
+    tile=ImageOps.expand(tile,border=12,fill="white")
+    tile=tile.resize((tile.width*3,tile.height*3),Image.Resampling.LANCZOS)
+    data=BytesIO();tile.save(data,"PNG")
+    args=["tesseract","stdin","stdout","--psm","7","-l","eng"]
+    if numeric:args.extend(["-c","tessedit_char_whitelist=0123456789.,"])
+    try:res=subprocess.run(args,input=data.getvalue(),capture_output=True,timeout=4,env={**os.environ,"OMP_THREAD_LIMIT":"1"})
+    except (FileNotFoundError,subprocess.TimeoutExpired) as exc:raise ImportError("Citirea previzului a durat prea mult.") from exc
+    return res.stdout.decode("utf-8",errors="replace").strip(" |_'\n")[:120] if res.returncode==0 else ""
+
+
+def _extract_forecast(image):
+    """Extract the fixed PREVIZ columns; every cell remains an editable draft."""
+    w,h=image.size
+    if not 1.55<w/h<2.2 or h<500:
+        raise ImportError("Previzul trebuie să includă tabelul complet, în format orizontal.")
+    heading=_forecast_cell(image,(96,139,450,190)).upper()
+    if "PRODUS" not in heading:
+        raise ImportError("Nu pot identifica antetul PRODUS. Încarcă imaginea completă și clară.")
+    title=_forecast_cell(image,(410,22,923,104))
+    found=re.search(r"(\d{2})[.\-/](\d{2})[.\-/](20\d{2})",title)
+    detected_date=""
+    if found:
+        try:detected_date=date(int(found[3]),int(found[2]),int(found[1])).isoformat()
+        except ValueError:pass
+    sx=round(w*700/1600)
+    selected=[]
+    for y in range(round(h*.22),round(h*.86)):
+        red,green,blue=image.getpixel((sx,y))
+        if blue>170 and green>105 and blue>green+35 and red<100:selected.append(y)
+    groups=[]
+    for y in selected:
+        if not groups or y>groups[-1][-1]+1:groups.append([y])
+        else:groups[-1].append(y)
+    runs=[(g[0],g[-1]+1) for g in groups if len(g)>=max(5,round(h/180))]
+    al_band=next(((a,b) for a,b in runs if a>h*.26),(0,0))
+    if not al_band:raise ImportError("Nu găsesc totalul AL. Include întregul tabel în imagine.")
+    al_start=al_band[0]*900/h
+    row_count=round((al_start-193)/41.7)
+    if not 1<=row_count<=60 or abs((al_start-193)/row_count-41.7)>8:
+        raise ImportError("Nu pot separa rândurile din previz. Folosește captura originală.")
+    bounds=[(193+i*(al_start-193)/row_count,193+(i+1)*(al_start-193)/row_count,"AL") for i in range(row_count)]
+    # CU entries lie after the AL subtotal. Empty placeholder cells are ignored.
+    green=[]
+    for y in range(al_band[1]+round(h*.004),round(h*.92)):
+        red,g,blue=image.getpixel((sx,y))
+        if g>75 and g>red+40 and g>blue+20:green.append(y)
+    green_groups=[]
+    for y in green:
+        if not green_groups or y>green_groups[-1][-1]+1:green_groups.append([y])
+        else:green_groups[-1].append(y)
+    green_runs=[(q[0]*900/h,q[-1]*900/h) for q in green_groups if len(q)>=max(5,round(h/180))]
+    if len(green_runs)>=2:
+        cu_begin=green_runs[0][0]
+        cu_end=green_runs[1][0]
+        count=round((cu_end-cu_begin)/42)
+        if 1<=count<=40:
+            bounds.extend((cu_begin+i*(cu_end-cu_begin)/count,cu_begin+(i+1)*(cu_end-cu_begin)/count,"CU") for i in range(count))
+    columns=[("product",(97,450),False),("km",(450,568),True),("tons",(568,686),True),
+             ("client",(686,879),False),("measure",(879,1089),False),
+             ("status",(1089,1236),False),("notes",(1236,1579),False)]
+    rows=[];review=[];started=time.monotonic()
+    for top,bottom,material in bounds:
+        if time.monotonic()-started>75:raise ImportError("Citirea a durat prea mult. Încarcă o captură mai clară.")
+        fields={}
+        for name,(x1,x2),numeric in columns:
+            value=_forecast_cell(image,(x1,top,x2,bottom),numeric=numeric)
+            if numeric:
+                value=value.replace(" ","").replace(",",".")
+                if not re.fullmatch(r"\d{1,7}(?:\.\d{1,4})?",value):value=""
+            fields[name]=value
+        status=fields["status"].upper()
+        if "PREDAT" in status:fields["status"]="PREDAT"
+        elif "SCH2" in status or "SCH 2" in status or "SCR" in status or "SCH" in status:fields["status"]="SCH2"
+        if not fields["product"] or fields["product"]=="0":
+            if material=="CU":continue
+            if not any(fields[k] for k in ("km","tons","client")):continue
+        index=len(rows)
+        rows.append({"material":material,**fields})
+        for name in ("product","km","tons","client","measure","status"):
+            if not fields[name]:review.append({"row":index,"field":name})
+        # OCR is never a reliable source for all decimal points; mark every number.
+        review.extend(({"row":index,"field":name} for name in ("km","tons") if fields[name]))
+    if not rows:raise ImportError("Nu am găsit produsele din previz.")
+    # The bright separator is only a narrow strip within the 49 px total row.
+    printed=_forecast_cell(image,(450,al_start,686,min(900,al_start+48)),numeric=True).replace(",",".")
+    warning=""
+    if re.fullmatch(r"\d+(?:\.\d+)?",printed):
+        parsed=sum((Decimal(r["tons"] or "0") for r in rows if r["material"]=="AL"),Decimal("0"))
+        if abs(parsed-Decimal(printed))>Decimal("0.06"):
+            warning=f"ATENȚIE: totalul AL din imagine este {printed} t, dar cel extras este {parsed} t. Corectează zecimalele înainte de salvare. "
+            review.extend({"row":i,"field":"tons"} for i,r in enumerate(rows) if r["material"]=="AL")
+    else:
+        warning="ATENȚIE: totalul AL din imagine nu a putut fi verificat automat. Compară manual totalul și toate tonele extrase. "
+    return {"rows":rows,"date":detected_date,"review":review,
+            "message":warning+"Verifică toate valorile și zecimalele înainte de salvare. Imaginea nu este stocată."}
+
+
+def import_forecast(encoded):
+    if not isinstance(encoded,str) or len(encoded)>MAX_IMAGE_BYTES*4//3+100:
+        raise ImportError("Imaginea depășește limita de 6 MB.")
+    try:
+        binary=base64.b64decode(encoded,validate=True)
+        if len(binary)>MAX_IMAGE_BYTES:raise ImportError("Imaginea depășește limita de 6 MB.")
+        source=Image.open(BytesIO(binary))
+        if source.format not in ("PNG","JPEG","WEBP") or source.width*source.height>20_000_000:
+            raise ImportError("Folosește JPG, PNG sau WebP sub 20 megapixeli.")
+        source.verify()
+        image=ImageOps.exif_transpose(Image.open(BytesIO(binary))).convert("RGB")
+        if image.width<900 or image.height<500:raise ImportError("Imaginea este prea mică pentru previz.")
+        if image.width>3000:image.thumbnail((3000,3000),Image.Resampling.LANCZOS)
+    except (binascii.Error,UnidentifiedImageError,OSError,Image.DecompressionBombError,ValueError) as exc:
+        if isinstance(exc,ImportError):raise
+        raise ImportError("Fișierul nu este o imagine validă.") from exc
+    if not OCR_SLOT.acquire(blocking=False):raise ImportError("Se procesează deja o imagine. Reîncearcă în câteva secunde.")
+    try:return _extract_forecast(image)
+    finally:OCR_SLOT.release()
 
 
 def _extract(image):
