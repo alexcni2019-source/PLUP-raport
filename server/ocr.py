@@ -256,6 +256,14 @@ def _forecast_cell(image, bounds, *, numeric=False, reference=(1600,900)):
     return res.stdout.decode("utf-8",errors="replace").strip(" |_'\n")[:120] if res.returncode==0 else ""
 
 
+def _forecast_has_text(image, bounds, reference):
+    """Ignore OCR noise from empty dark cells and their glowing grid lines."""
+    x1,y1,x2,y2=(round(v*image.width/reference[0]) if i%2==0 else round(v*image.height/reference[1])
+                 for i,v in enumerate(bounds))
+    tile=image.crop((x1+12,y1+8,x2-12,y2-8)).convert("L")
+    return sum(tile.histogram()[190:])>=35
+
+
 def _extract_forecast(image):
     """Extract the fixed PREVIZ columns; every cell remains an editable draft."""
     w,h=image.size
@@ -336,7 +344,8 @@ def _extract_forecast(image):
         if time.monotonic()-started>75:raise ImportError("Citirea a durat prea mult. Încarcă o captură mai clară.")
         fields={}
         for name,(x1,x2),numeric in columns:
-            value=_forecast_cell(image,(x1,top,x2,bottom),numeric=numeric,reference=ref)
+            box=(x1,top,x2,bottom)
+            value="" if name=="notes" and not _forecast_has_text(image,box,ref) else _forecast_cell(image,box,numeric=numeric,reference=ref)
             if numeric:
                 value=value.replace(" ","").replace(",",".")
                 if not re.fullmatch(r"\d{1,7}(?:\.\d{1,4})?",value):value=""
@@ -355,6 +364,9 @@ def _extract_forecast(image):
         rows.append({"material":material,**fields})
         for name in ("product","km","tons","client","measure","status"):
             if not fields[name]:review.append({"row":index,"field":name})
+        # All imported product codes and observations need human comparison;
+        # a plausible OCR string can still contain a wrong character.
+        review.extend({"row":index,"field":name} for name in ("product","notes") if fields[name])
         # OCR is never a reliable source for all decimal points; mark every number.
         review.extend(({"row":index,"field":name} for name in ("km","tons") if fields[name]))
     if not rows:raise ImportError("Nu am găsit produsele din previz.")
