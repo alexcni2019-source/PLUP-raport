@@ -16,7 +16,7 @@ import hmac
 import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
-from server.render import plan_image, production_image
+from server.corporate import plan_image, production_image
 from server.ocr import import_plan, ImportError as PlanImportError
 
 
@@ -290,7 +290,11 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError,UnicodeDecodeError) as exc:
             self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) else "Raport invalid.");return
         if path=="/api/render":
-            try: page=int(parse_qs(parts.query).get("page",[0])[0]);image=plan_image(report) if report["mode"]=="plan" else production_image(report,page)
+            try:
+                params=parse_qs(parts.query)
+                theme=params.get("theme",["light"])[0]
+                if theme not in ("light","dark"):raise ValueError("Temă invalidă")
+                page=int(params.get("page",[0])[0]);image=plan_image(report,theme) if report["mode"]=="plan" else production_image(report,page,theme)
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
             self.respond(200,image,"image/png")
         else:

@@ -54,11 +54,11 @@
       const labels=state.mode==='weekend'?['Vineri','Sâmbătă','Duminică','Total weekend']:['Raport zilnic'];
       const order=state.mode==='weekend'?[...Array(labels.length).keys()].sort((a,b)=>a===dates().indexOf(state.selectedDate)?-1:b===dates().indexOf(state.selectedDate)?1:a-b):[0];
       for(const i of order){
-        const response=await window.PLUPFetch(`/api/render?page=${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload()),credentials:'same-origin'});
+        const response=await window.PLUPFetch(`/api/render?page=${i}&theme=${window.PLUPTheme.current()}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload()),credentials:'same-origin'});
         if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||'Generarea nu este disponibilă.');}
         const blob=await response.blob();if(blob.type!=='image/png')throw Error('Răspuns imagine invalid.');
         const url=URL.createObjectURL(blob),item=document.createElement('div'),title=document.createElement('strong'),img=document.createElement('img'),link=document.createElement('a');
-        item.className='image-result';title.textContent=`${labels[i]} · ${i<dates().length?labelDate(dates()[i]):'total'}`;img.src=url;img.alt=`Previzualizare ${labels[i]} PLUP`;link.href=url;link.download=`NRG_PLUP_${i<dates().length?dates()[i]:state.date+'_total'}.png`;link.textContent='Descarcă PNG ↓';item.append(title,img,link);gallery.append(item);
+        item.className='image-result';title.textContent=`${labels[i]} · ${i<dates().length?labelDate(dates()[i]):'total'}`;img.src=url;img.alt=`Previzualizare ${labels[i]} PLUP`;link.href=url;link.download=`NRG_PLUP_${i<dates().length?dates()[i]:state.date+'_total'}_${window.PLUPTheme.current()}.png`;link.textContent='Descarcă PNG ↓';item.append(title,img,link);gallery.append(item);
       }
       $('api-status').textContent='Imaginile sunt gata. Pe iPhone, poți și apăsa lung pe imagine pentru a o salva.';
     }catch(e){$('api-status').textContent=e.message;}finally{button.disabled=false;}

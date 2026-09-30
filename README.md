@@ -47,6 +47,7 @@ Valorile din exemplul de mai sus sunt demonstrative; folosește secrete generate
 - Capturile Excel late și compacte (inclusiv 1600 × 382 px) sunt citite după grila fixă AL/CU. La import, subtotalurile tipărite sunt comparate cu cifrele extrase; valorile marcate se verifică înainte de confirmare. Pentru fidelitatea cifrelor mici, captura PNG este transmisă fără conversie la JPEG dacă rămâne sub 6 MB.
 - Zilnic: luni–joi, valori în tone, procent deșeu și indicatori operaționali.
 - Weekend: vineri–duminică separat, trei imagini zilnice și imaginea totalului.
+- Aspect corporativ luminos inspirat de tabelul PLUP: antet NRG Cables, tabel aerisit și benzi AL/CU/total. Butonul Light/Dark din antet schimbă interfața și tema imaginilor PNG generate; alegerea rămâne salvată doar în browserul utilizatorului. Varianta întunecată folosește albastru petrol și contraste pentru totaluri.
 - Istoric: fiecare salvare creează o intrare nouă, cu dată și ora salvării; o intrare poate fi redeschisă.
 
 Imaginile sunt generate pe server din date validate. Pe iOS, imaginea se poate salva prin apăsare lungă din previzualizare, dacă navigatorul nu descarcă direct fișierul.
