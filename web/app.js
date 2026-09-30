@@ -78,6 +78,6 @@
     }catch(e){$('api-status').textContent=e.message;}finally{button.disabled=false;}
   });
   if(matchMedia('(hover:hover) and (pointer:fine)').matches){document.querySelectorAll('.panel').forEach(panel=>panel.addEventListener('pointermove',e=>{const r=panel.getBoundingClientRect();panel.style.setProperty('--cursor-x',`${e.clientX-r.left}px`);panel.style.setProperty('--cursor-y',`${e.clientY-r.top}px`);}));}
-  window.PLUPReport={setMode(mode){if(mode!==state.mode)loadedId=null;state.mode=mode;const selected=state.selectedDate||state.date;state.date=mode==='weekend'?startFriday(selected):selected;state.selectedDate=selected;render();},load(data,id){loadedId=id||null;state={mode:data.mode,date:data.date,selectedDate:data.date,values:data.values};render();},payload};
+  window.PLUPReport={newFrom(data,mode,selected){loadedId=null;state={mode,date:mode==='weekend'?startFriday(selected):selected,selectedDate:selected,values:{}};dates().forEach((day,i)=>{state.values[day]={...(data?.values[shiftDate(data.date,i)]||{})};});$('report-images').replaceChildren();render();},setMode(mode){if(mode!==state.mode)loadedId=null;state.mode=mode;const selected=state.selectedDate||state.date;state.date=mode==='weekend'?startFriday(selected):selected;state.selectedDate=selected;render();},load(data,id){loadedId=id||null;state={mode:data.mode,date:data.date,selectedDate:data.date,values:data.values};render();},payload};
   render();
 })();

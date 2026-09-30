@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
+from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent
@@ -11,6 +12,7 @@ ASSETS = ROOT / "assets"
 WHITE = "#f7fbff"
 
 
+@lru_cache(maxsize=64)
 def font(size, bold=False):
     return ImageFont.truetype(str(ROOT / ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf")), size)
 
@@ -54,7 +56,7 @@ def amount(value, places=2):
 
 def png(image):
     out = BytesIO()
-    image.save(out, "PNG", optimize=True)
+    image.save(out, "PNG", compress_level=6)
     return out.getvalue()
 
 

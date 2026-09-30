@@ -94,6 +94,6 @@
   });
   $('plan-paste-zone').addEventListener('beforeinput',event=>{if(event.inputType!=='insertFromPaste')event.preventDefault();});
   $('plan-paste-zone').addEventListener('blur',()=>{$('plan-paste-zone').textContent=pasteHint;});
-  window.PLUPPlan={load(data){$('plan-date').value=data.date;$('plan-week').value=data.week;$('plan-incoming').value=data.incoming||'';rows=data.rows;reviewFields.clear();importNeedsReview=false;$('plan-review').hidden=true;render();},payload};
+  window.PLUPPlan={load(data){$('plan-date').value=data.date;$('plan-week').value=data.week;$('plan-incoming').value=data.incoming||'';rows=data.rows.map(r=>({...r}));reviewFields.clear();importNeedsReview=false;$('plan-review').hidden=true;$('plan-images').replaceChildren();render();},payload};
   render();
 })();

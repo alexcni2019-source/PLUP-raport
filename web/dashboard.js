@@ -23,7 +23,26 @@
       historyOffset+=records.length;$('more-history').hidden=records.length<100;
     }catch(e){$('history-status').textContent=e.message;}
   }
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)show(b.dataset.view);});
+  async function startNew(mode,button){
+    button.disabled=true;
+    try{
+      const response=await window.PLUPFetch('/api/reports/latest?mode='+encodeURIComponent(mode),{credentials:'same-origin'});
+      if(!response.ok)throw Error('Nu am putut încărca ultimele valori. Reîncearcă.');
+      const {payload}=await response.json();
+      const today=new Date().toLocaleDateString('sv-SE');
+      if(mode==='plan'){
+        window.PLUPPlan.load(payload?{...payload,date:today}:{mode,date:today,week:'',incoming:'',rows:[{material:'AL'},{material:'CU'}]});
+      }else if(mode==='forecast'){
+        window.PLUPForecast.load(payload?{...payload,date:today}:{mode,date:today,rows:[{material:'AL'}]},null);
+      }else{
+        window.PLUPReport.newFrom(payload,mode,today);
+      }
+      show(mode);
+      const status=$(mode==='plan'?'plan-status':mode==='forecast'?'forecast-status':'api-status');
+      status.textContent=payload?'Raport nou, precompletat cu ultimele valori. Verifică data și actualizează cantitățile înainte de generare.':'Raport nou. Completează valorile.';
+    }catch(error){window.alert(error.message);}finally{button.disabled=false;}
+  }
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;if(b.classList.contains('dashboard-card'))void startNew(b.dataset.view,b);else show(b.dataset.view);});
   $('refresh-history').addEventListener('click',()=>history());
   $('more-history').addEventListener('click',()=>history(true));
   $('history-list').addEventListener('click',async e=>{const b=e.target.closest('[data-load]');if(!b)return;$('history-status').textContent='Se deschide raportul…';try{const response=await window.PLUPFetch('/api/reports/'+encodeURIComponent(b.dataset.load),{credentials:'same-origin'});if(!response.ok)throw Error('Raportul nu a putut fi deschis.');const record=await response.json();if(record.mode==='plan'){window.PLUPPlan.load(record.payload);show('plan');}else if(record.mode==='forecast'){window.PLUPForecast.load(record.payload,record.id);show('forecast');}else{show(record.mode);window.PLUPReport.load(record.payload,record.id);}$('history-status').textContent='';}catch(err){$('history-status').textContent=err.message;}});

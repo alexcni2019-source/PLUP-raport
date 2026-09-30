@@ -182,7 +182,29 @@ def database():
             conn.rollback()
             raise
     conn.execute("CREATE INDEX IF NOT EXISTS reports_recent ON reports(created_at DESC)")
+    conn.execute("CREATE TABLE IF NOT EXISTS report_defaults (mode TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     return conn
+
+
+def remember_generated(payload):
+    conn=database()
+    try:
+        with conn:
+            conn.execute("INSERT INTO report_defaults(mode,payload) VALUES (?,?) ON CONFLICT(mode) DO UPDATE SET payload=excluded.payload",
+                         (payload["mode"],json.dumps(payload,ensure_ascii=False)))
+    finally:conn.close()
+
+
+def latest_template(mode):
+    if mode not in ("weekday","weekend","plan","forecast"):
+        raise InvalidReport("Tip de raport invalid.")
+    conn=database()
+    try:
+        row=conn.execute("SELECT payload FROM report_defaults WHERE mode=?",(mode,)).fetchone()
+        if not row:
+            row=conn.execute("SELECT payload FROM reports WHERE mode=? ORDER BY created_at DESC,id DESC LIMIT 1",(mode,)).fetchone()
+        return json.loads(row["payload"]) if row else None
+    finally:conn.close()
 
 
 def save_report(payload):
@@ -275,6 +297,11 @@ class Handler(BaseHTTPRequestHandler):
             try: records=[dict(row) for row in conn.execute("SELECT id,mode,report_date AS date,created_at FROM reports ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",(limit,offset))]
             finally: conn.close()
             self.respond(200,json.dumps(records).encode(),"application/json; charset=utf-8");return
+        if pathname=="/api/reports/latest":
+            if not self.authorize():return
+            try:payload=latest_template(parse_qs(urlsplit(self.path).query).get("mode",[""])[0])
+            except InvalidReport as exc:self.error(400,str(exc));return
+            self.respond(200,json.dumps({"payload":payload},ensure_ascii=False).encode(),"application/json; charset=utf-8");return
         if pathname.startswith("/api/reports/"):
             if not self.authorize():return
             identifier=pathname.rsplit("/",1)[-1]
@@ -340,6 +367,7 @@ class Handler(BaseHTTPRequestHandler):
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
                 page=int(params.get("page",[0])[0]);image=plan_image(report,theme) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1") if report["mode"]=="forecast" and page==0 else production_image(report,page,theme)
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
+            remember_generated(body)
             self.respond(200,image,"image/png")
         else:
             self.respond(200,json.dumps(serialize(report),ensure_ascii=False).encode(),"application/json; charset=utf-8")
