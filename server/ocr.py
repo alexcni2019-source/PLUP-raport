@@ -370,6 +370,12 @@ def _extract_forecast(image):
         # OCR is never a reliable source for all decimal points; mark every number.
         review.extend(({"row":index,"field":name} for name in ("km","tons") if fields[name]))
     if not rows:raise ImportError("Nu am găsit produsele din previz.")
+    # A differently positioned table can look plausible to OCR while every
+    # field is shifted into its neighbour. Never return such a draft for export.
+    recognized_status=sum(bool(re.search(r"\b(?:PREDAT|SCH\s?2)\b",row["status"],re.I)) for row in rows)
+    recognized_measure=sum("/TB" in row["measure"].upper() for row in rows)
+    if len(rows)>=3 and (recognized_status<len(rows)*.45 or recognized_measure<len(rows)*.45):
+        raise ImportError("Coloanele imaginii nu se aliniază cu șablonul recunoscut; importul a fost oprit pentru a evita valori mutate între Produs, KM și Stadiu. Încarcă imaginea originală a tabelului.")
     # The bright separator is only a narrow strip within the 49 px total row.
     if subtotal_box is None:
         subtotal_box=(450,al_start,686,min(ref[1],al_start+48))
