@@ -261,9 +261,10 @@ def _extract_forecast(image):
     w,h=image.size
     if not 1.55<w/h<2.2 or h<500:
         raise ImportError("Previzul trebuie să includă tabelul complet, în format orizontal.")
+    # A stylized or compressed header can be missed by Tesseract even when
+    # the table cells are legible. Check the actual grid and first data row
+    # before rejecting the image on that single OCR word.
     heading=_forecast_cell(image,(96,139,450,190)).upper()
-    if "PRODUS" not in heading:
-        raise ImportError("Nu pot identifica antetul PRODUS. Încarcă imaginea completă și clară.")
     title=_forecast_cell(image,(410,22,923,104))
     found=re.search(r"(\d{2})[.\-/](\d{2})[.\-/](20\d{2})",title)
     detected_date=""
@@ -281,8 +282,14 @@ def _extract_forecast(image):
         else:groups[-1].append(y)
     runs=[(g[0],g[-1]+1) for g in groups if len(g)>=max(5,round(h/180))]
     al_band=next(((a,b) for a,b in runs if a>h*.26),(0,0))
-    if not al_band:raise ImportError("Nu găsesc totalul AL. Include întregul tabel în imagine.")
+    if not al_band:raise ImportError("Nu pot localiza banda TOTAL AL a previzului. Include întregul tabel în imagine.")
     al_start=al_band[0]*900/h
+    if "PRODUS" not in heading.replace("0","O"):
+        first_product=_forecast_cell(image,(97,193,450,235)).upper()
+        first_client=_forecast_cell(image,(686,193,879,235)).upper()
+        if (not re.search(r"[A-Z]{2,}.*\d",first_product)
+                or not re.search(r"[A-Z]{2,}",first_client)):
+            raise ImportError("Nu pot localiza produsele și clienții în tabelul PREVIZ. Încarcă tabelul complet, fără margini sau alte elemente în jurul lui.")
     row_count=round((al_start-193)/41.7)
     if not 1<=row_count<=60 or abs((al_start-193)/row_count-41.7)>8:
         raise ImportError("Nu pot separa rândurile din previz. Folosește captura originală.")
@@ -319,6 +326,8 @@ def _extract_forecast(image):
         status=fields["status"].upper()
         if "PREDAT" in status:fields["status"]="PREDAT"
         elif "SCH2" in status or "SCH 2" in status or "SCR" in status or "SCH" in status:fields["status"]="SCH2"
+        if material=="CU" and all(fields[k] in ("","0") for k in ("km","tons","client","measure","status","notes")):
+            continue
         if not fields["product"] or fields["product"]=="0":
             if material=="CU":continue
             if not any(fields[k] for k in ("km","tons","client")):continue
