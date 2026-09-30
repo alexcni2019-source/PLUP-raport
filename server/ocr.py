@@ -239,15 +239,22 @@ def import_plan(encoded):
         OCR_SLOT.release()
 
 
-def _forecast_cell(image, bounds, *, numeric=False, reference=(1600,900)):
+def _forecast_cell(image, bounds, *, numeric=False, pill=False, threshold=None, reference=(1600,900)):
     x1,y1,x2,y2=(round(v*image.width/reference[0]) if i%2==0 else round(v*image.height/reference[1])
                  for i,v in enumerate(bounds))
-    tile=image.crop((x1+4,y1+3,x2-4,y2-3)).convert("L")
+    binary=threshold is not None or pill
+    tile=image.crop((x1+8,y1+8,x2-8,y2-8) if binary else (x1+4,y1+3,x2-4,y2-3)).convert("L")
     if tile.width<9 or tile.height<8:return ""
-    if ImageStat.Stat(tile).median[0]<125:tile=ImageOps.invert(tile)
-    tile=ImageOps.autocontrast(tile)
+    if threshold is not None:
+        tile=tile.point(lambda value:0 if value>threshold else 255)
+    elif pill:
+        tile=tile.point(lambda value:255 if value>130 else 0)
+    else:
+        if ImageStat.Stat(tile).median[0]<125:tile=ImageOps.invert(tile)
+        tile=ImageOps.autocontrast(tile)
     tile=ImageOps.expand(tile,border=12,fill="white")
-    tile=tile.resize((tile.width*3,tile.height*3),Image.Resampling.LANCZOS)
+    factor=4 if binary else 3
+    tile=tile.resize((tile.width*factor,tile.height*factor),Image.Resampling.NEAREST if binary else Image.Resampling.LANCZOS)
     data=BytesIO();tile.save(data,"PNG")
     args=["tesseract","stdin","stdout","--psm","7","-l","eng"]
     if numeric:args.extend(["-c","tessedit_char_whitelist=0123456789.,"])
@@ -264,6 +271,22 @@ def _forecast_has_text(image, bounds, reference):
     return sum(tile.histogram()[190:])>=35
 
 
+def _forecast_number(image,box,reference):
+    candidates=[]
+    for threshold in (None,130,160,190):
+        value=_forecast_cell(image,box,numeric=True,threshold=threshold,reference=reference).replace(" ","").replace(",",".")
+        if re.fullmatch(r"\d{1,7}(?:\.\d{1,4})?",value):candidates.append(value)
+    if not candidates:return ""
+    counts={value:candidates.count(value) for value in candidates}
+    best=max(counts.values())
+    tied=[value for value in counts if counts[value]==best]
+    # A lost decimal point is common: preserve the repeatedly observed dot
+    # rather than converting 4.6 into 46 when both crops have equal support.
+    for value in tied:
+        if "." in value and value.replace(".","") in tied:return value
+    return tied[0]
+
+
 def _extract_forecast(image):
     """Extract the fixed PREVIZ columns; every cell remains an editable draft."""
     w,h=image.size
@@ -271,22 +294,33 @@ def _extract_forecast(image):
         raise ImportError("Previzul trebuie să includă tabelul complet, în format orizontal.")
     # Both supplied designs have the same columns but different positions.
     # Select their grid from the header, then use its own reference coordinates.
-    old_heading=_forecast_cell(image,(96,139,450,190)).upper()
-    new_heading=_forecast_cell(image,(115,155,491,219),reference=(1536,864)).upper()
-    variant="old" if "PRODUS" in old_heading.replace("0","O") else "new" if "PRODUS" in new_heading.replace("0","O") else ""
-    if not variant:
-        # Some compression destroys the header OCR; prefer the newer grid if
-        # its first product and client are legible, otherwise try the old grid.
-        for candidate,ref,product,client in (
-                ("new",(1536,864),(115,222,491,262),(725,222,951,262)),
-                ("old",(1600,900),(97,193,450,235),(686,193,879,235))):
-            a=_forecast_cell(image,product,reference=ref).upper()
-            b=_forecast_cell(image,client,reference=ref).upper()
-            if re.search(r"[A-Z]{2,}.*\d",a) and re.search(r"[A-Z]{2,}",b):
-                variant=candidate;break
+    grids={"old":(1600,[450,568,686,879,1089,1236]),
+           "new":(1536,[491,588,725,951,1212,1331]),
+           "wide":(1672,[459,583,713,905,1121,1289])}
+    scores={}
+    for name,(reference_width,positions) in grids.items():
+        score=0
+        for position in positions:
+            x=round(position*w/reference_width)
+            contrast=[]
+            for y in range(round(h*.30),round(h*.58),7):
+                light=lambda xx:sum(image.getpixel((xx,y)))/3
+                contrast.append(light(x)-(light(x-6)+light(x+6))/2)
+            score+=sorted(contrast)[len(contrast)//2]
+        scores[name]=score
+    ordered=sorted(scores,key=scores.get,reverse=True)
+    # Header text can fit several crops. The vertical grid identifies which
+    # complete column layout is actually present, without using OCR guesses.
+    variant=ordered[0] if scores[ordered[0]]>25 and scores[ordered[0]]-scores[ordered[1]]>15 else ""
     if not variant:
         raise ImportError("Nu pot localiza tabelul PREVIZ în imagine. Încarcă tabelul complet, fără alte elemente în jur.")
-    if variant=="new":
+    if variant=="wide":
+        ref=(1672,941);first_y=225;step=43.8
+        columns=[("product",(91,459),False),("km",(459,583),True),("tons",(583,713),True),
+                 ("client",(713,905),False),("measure",(905,1121),False),
+                 ("status",(1121,1289),False),("notes",(1289,1654),False)]
+        title_box=(467,28,944,110);subtotal_box=None
+    elif variant=="new":
         ref=(1536,864);first_y=222;step=39.5
         columns=[("product",(115,491),False),("km",(491,588),True),("tons",(588,725),True),
                  ("client",(725,951),False),("measure",(951,1212),False),
@@ -345,10 +379,16 @@ def _extract_forecast(image):
         fields={}
         for name,(x1,x2),numeric in columns:
             box=(x1,top,x2,bottom)
-            value="" if name=="notes" and not _forecast_has_text(image,box,ref) else _forecast_cell(image,box,numeric=numeric,reference=ref)
+            if numeric:value=_forecast_number(image,box,ref)
+            else:
+                value="" if name=="notes" and not _forecast_has_text(image,box,ref) else _forecast_cell(image,box,reference=ref)
+                if name=="status" and not re.search(r"PREDAT|SCH\s?2",value,re.I):
+                    value=_forecast_cell(image,box,pill=True,reference=ref)
             if numeric:
                 value=value.replace(" ","").replace(",",".")
                 if not re.fullmatch(r"\d{1,7}(?:\.\d{1,4})?",value):value=""
+            elif name=="notes":
+                value=re.sub(r"\bMARCASJ\b","MARCAJ",value)
             fields[name]=value
         status=fields["status"].upper()
         if "PREDAT" in status:
@@ -378,7 +418,7 @@ def _extract_forecast(image):
         raise ImportError("Coloanele imaginii nu se aliniază cu șablonul recunoscut; importul a fost oprit pentru a evita valori mutate între Produs, KM și Stadiu. Încarcă imaginea originală a tabelului.")
     # The bright separator is only a narrow strip within the 49 px total row.
     if subtotal_box is None:
-        subtotal_box=(450,al_start,686,min(ref[1],al_start+48))
+        subtotal_box=(columns[1][1][0],al_start,columns[2][1][1],min(ref[1],al_start+48))
     printed_text=_forecast_cell(image,subtotal_box,reference=ref).replace(",",".")
     printed_match=re.search(r"(?<!\d)(\d+(?:\.\d+)?)(?!\d)",printed_text)
     printed=printed_match[1] if printed_match else ""
