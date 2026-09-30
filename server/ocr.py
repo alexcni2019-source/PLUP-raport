@@ -239,8 +239,8 @@ def import_plan(encoded):
         OCR_SLOT.release()
 
 
-def _forecast_cell(image, bounds, *, numeric=False):
-    x1,y1,x2,y2=(round(v*image.width/1600) if i%2==0 else round(v*image.height/900)
+def _forecast_cell(image, bounds, *, numeric=False, reference=(1600,900)):
+    x1,y1,x2,y2=(round(v*image.width/reference[0]) if i%2==0 else round(v*image.height/reference[1])
                  for i,v in enumerate(bounds))
     tile=image.crop((x1+4,y1+3,x2-4,y2-3)).convert("L")
     if tile.width<9 or tile.height<8:return ""
@@ -261,21 +261,46 @@ def _extract_forecast(image):
     w,h=image.size
     if not 1.55<w/h<2.2 or h<500:
         raise ImportError("Previzul trebuie să includă tabelul complet, în format orizontal.")
-    # A stylized or compressed header can be missed by Tesseract even when
-    # the table cells are legible. Check the actual grid and first data row
-    # before rejecting the image on that single OCR word.
-    heading=_forecast_cell(image,(96,139,450,190)).upper()
-    title=_forecast_cell(image,(410,22,923,104))
+    # Both supplied designs have the same columns but different positions.
+    # Select their grid from the header, then use its own reference coordinates.
+    old_heading=_forecast_cell(image,(96,139,450,190)).upper()
+    new_heading=_forecast_cell(image,(115,155,491,219),reference=(1536,864)).upper()
+    variant="old" if "PRODUS" in old_heading.replace("0","O") else "new" if "PRODUS" in new_heading.replace("0","O") else ""
+    if not variant:
+        # Some compression destroys the header OCR; prefer the newer grid if
+        # its first product and client are legible, otherwise try the old grid.
+        for candidate,ref,product,client in (
+                ("new",(1536,864),(115,222,491,262),(725,222,951,262)),
+                ("old",(1600,900),(97,193,450,235),(686,193,879,235))):
+            a=_forecast_cell(image,product,reference=ref).upper()
+            b=_forecast_cell(image,client,reference=ref).upper()
+            if re.search(r"[A-Z]{2,}.*\d",a) and re.search(r"[A-Z]{2,}",b):
+                variant=candidate;break
+    if not variant:
+        raise ImportError("Nu pot localiza tabelul PREVIZ în imagine. Încarcă tabelul complet, fără alte elemente în jur.")
+    if variant=="new":
+        ref=(1536,864);first_y=222;step=39.5
+        columns=[("product",(115,491),False),("km",(491,588),True),("tons",(588,725),True),
+                 ("client",(725,951),False),("measure",(951,1212),False),
+                 ("status",(1212,1331),False),("notes",(1331,1510),False)]
+        title_box=(445,24,1000,113);subtotal_box=(491,578,725,634)
+    else:
+        ref=(1600,900);first_y=193;step=41.7
+        columns=[("product",(97,450),False),("km",(450,568),True),("tons",(568,686),True),
+                 ("client",(686,879),False),("measure",(879,1089),False),
+                 ("status",(1089,1236),False),("notes",(1236,1579),False)]
+        title_box=(410,22,923,104);subtotal_box=None
+    title=_forecast_cell(image,title_box,reference=ref)
     found=re.search(r"(\d{2})[.\-/](\d{2})[.\-/](20\d{2})",title)
     detected_date=""
     if found:
         try:detected_date=date(int(found[3]),int(found[2]),int(found[1])).isoformat()
         except ValueError:pass
-    sx=round(w*700/1600)
+    sx=round(w*.51)
     selected=[]
     for y in range(round(h*.22),round(h*.86)):
         red,green,blue=image.getpixel((sx,y))
-        if blue>170 and green>105 and blue>green+35 and red<100:selected.append(y)
+        if blue>150 and green>40 and blue>green+40 and red<120:selected.append(y)
     groups=[]
     for y in selected:
         if not groups or y>groups[-1][-1]+1:groups.append([y])
@@ -283,48 +308,43 @@ def _extract_forecast(image):
     runs=[(g[0],g[-1]+1) for g in groups if len(g)>=max(5,round(h/180))]
     al_band=next(((a,b) for a,b in runs if a>h*.26),(0,0))
     if not al_band:raise ImportError("Nu pot localiza banda TOTAL AL a previzului. Include întregul tabel în imagine.")
-    al_start=al_band[0]*900/h
-    if "PRODUS" not in heading.replace("0","O"):
-        first_product=_forecast_cell(image,(97,193,450,235)).upper()
-        first_client=_forecast_cell(image,(686,193,879,235)).upper()
-        if (not re.search(r"[A-Z]{2,}.*\d",first_product)
-                or not re.search(r"[A-Z]{2,}",first_client)):
-            raise ImportError("Nu pot localiza produsele și clienții în tabelul PREVIZ. Încarcă tabelul complet, fără margini sau alte elemente în jurul lui.")
-    row_count=round((al_start-193)/41.7)
-    if not 1<=row_count<=60 or abs((al_start-193)/row_count-41.7)>8:
+    al_start=al_band[0]*ref[1]/h
+    row_count=round((al_start-first_y)/step)
+    if not 1<=row_count<=60 or abs((al_start-first_y)/row_count-step)>8:
         raise ImportError("Nu pot separa rândurile din previz. Folosește captura originală.")
-    bounds=[(193+i*(al_start-193)/row_count,193+(i+1)*(al_start-193)/row_count,"AL") for i in range(row_count)]
+    offset=-3 if variant=="new" else 0
+    bounds=[(first_y+i*(al_start-first_y)/row_count+offset,
+             first_y+(i+1)*(al_start-first_y)/row_count+offset,"AL") for i in range(row_count)]
     # CU entries lie after the AL subtotal. Empty placeholder cells are ignored.
     green=[]
     for y in range(al_band[1]+round(h*.004),round(h*.92)):
         red,g,blue=image.getpixel((sx,y))
-        if g>75 and g>red+40 and g>blue+20:green.append(y)
+        if g>40 and g>red+20 and g>blue+10:green.append(y)
     green_groups=[]
     for y in green:
         if not green_groups or y>green_groups[-1][-1]+1:green_groups.append([y])
         else:green_groups[-1].append(y)
-    green_runs=[(q[0]*900/h,q[-1]*900/h) for q in green_groups if len(q)>=max(5,round(h/180))]
+    green_runs=[(q[0]*ref[1]/h,q[-1]*ref[1]/h) for q in green_groups if len(q)>=max(5,round(h/180))]
     if len(green_runs)>=2:
         cu_begin=green_runs[0][0]
         cu_end=green_runs[1][0]
-        count=round((cu_end-cu_begin)/42)
+        count=round((cu_end-cu_begin)/step)
         if 1<=count<=40:
             bounds.extend((cu_begin+i*(cu_end-cu_begin)/count,cu_begin+(i+1)*(cu_end-cu_begin)/count,"CU") for i in range(count))
-    columns=[("product",(97,450),False),("km",(450,568),True),("tons",(568,686),True),
-             ("client",(686,879),False),("measure",(879,1089),False),
-             ("status",(1089,1236),False),("notes",(1236,1579),False)]
     rows=[];review=[];started=time.monotonic()
     for top,bottom,material in bounds:
         if time.monotonic()-started>75:raise ImportError("Citirea a durat prea mult. Încarcă o captură mai clară.")
         fields={}
         for name,(x1,x2),numeric in columns:
-            value=_forecast_cell(image,(x1,top,x2,bottom),numeric=numeric)
+            value=_forecast_cell(image,(x1,top,x2,bottom),numeric=numeric,reference=ref)
             if numeric:
                 value=value.replace(" ","").replace(",",".")
                 if not re.fullmatch(r"\d{1,7}(?:\.\d{1,4})?",value):value=""
             fields[name]=value
         status=fields["status"].upper()
-        if "PREDAT" in status:fields["status"]="PREDAT"
+        if "PREDAT" in status:
+            delivered=re.search(r"(\d+(?:[.,]\d+)?)\s*KM",status)
+            fields["status"]="PREDAT "+delivered[1].replace(",",".")+" KM" if delivered else "PREDAT"
         elif "SCH2" in status or "SCH 2" in status or "SCR" in status or "SCH" in status:fields["status"]="SCH2"
         if material=="CU" and all(fields[k] in ("","0") for k in ("km","tons","client","measure","status","notes")):
             continue
@@ -339,7 +359,11 @@ def _extract_forecast(image):
         review.extend(({"row":index,"field":name} for name in ("km","tons") if fields[name]))
     if not rows:raise ImportError("Nu am găsit produsele din previz.")
     # The bright separator is only a narrow strip within the 49 px total row.
-    printed=_forecast_cell(image,(450,al_start,686,min(900,al_start+48)),numeric=True).replace(",",".")
+    if subtotal_box is None:
+        subtotal_box=(450,al_start,686,min(ref[1],al_start+48))
+    printed_text=_forecast_cell(image,subtotal_box,reference=ref).replace(",",".")
+    printed_match=re.search(r"(?<!\d)(\d+(?:\.\d+)?)(?!\d)",printed_text)
+    printed=printed_match[1] if printed_match else ""
     warning=""
     if re.fullmatch(r"\d+(?:\.\d+)?",printed):
         parsed=sum((Decimal(r["tons"] or "0") for r in rows if r["material"]=="AL"),Decimal("0"))
