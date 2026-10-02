@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from PIL import Image, ImageDraw
 
 from server.render import HEADERS, KEYS, OPS, amount, font, png, text, wrapped
@@ -27,6 +27,19 @@ def label(draw, xy, value, size, color, *, bold=False, width=None, anchor=None):
     text(draw,xy,value,size,color,bold,anchor,width)
 
 
+def cell_text(value):
+    """Display only populated, nonzero detail cells; totals use amount directly."""
+    value=str(value or "").strip()
+    if value in ("", "—", "–", "-"):
+        return ""
+    try:
+        if Decimal(value.replace(",", ".")) == 0:
+            return ""
+    except InvalidOperation:
+        pass
+    return value
+
+
 def brand(draw, width, stamp, title, palette):
     p=palette
     label(draw,(29,20),"NRG Cables",40,p["ink"],bold=True,width=465)
@@ -46,7 +59,8 @@ def plan_image(plan,theme="light"):
     measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
     def line_layout(row):
         product=wrapped(measure,row["product"],12,X[3]-X[2]-13)
-        notes=wrapped(measure,row["notes"],11,X[15]-X[14]-20) if row["notes"] else []
+        note=cell_text(row["notes"])
+        notes=wrapped(measure,note,11,X[15]-X[14]-20) if note else []
         return product,notes,max(31,9+max(len(product),len(notes),1)*15)
     lines=[line_layout(row) for row in al+cu]
     body_height=sum(item[2] for item in lines)
@@ -79,6 +93,7 @@ def plan_image(plan,theme="light"):
             for n,line in enumerate(product_lines):
                 label(d,(X[2]+9,y+(row_h-15*len(product_lines))/2+n*15),line,12,p["ink"])
             for col,key in enumerate(KEYS):
+                if not row[key]:continue
                 label(d,((X[col+3]+X[col+4])/2,y+row_h/2),amount(row[key]),12,p["ink"],anchor="mm",width=X[col+4]-X[col+3]-8)
             if note_lines:
                 is_done=row["notes"].strip().lower()=="predat"
@@ -247,8 +262,11 @@ def forecast_image(forecast,theme="light",show_status=True):
     cu=[row for row in forecast["rows"] if row["material"]=="CU"]
     measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
     def layout(row):
-        wraps={key:wrapped(measure,row[key],13,columns[i+2]-columns[i+1]-18)
-               for i,key in enumerate(keys) if key in ("product","notes","measure")}
+        wraps={}
+        for i,key in enumerate(keys):
+            if key not in ("product","notes","measure"):continue
+            value=row[key] if key=="product" else cell_text(row[key])
+            wraps[key]=wrapped(measure,value,13,columns[i+2]-columns[i+1]-18) if value else []
         return wraps,max(38,12+18*max((len(q) for q in wraps.values()),default=1))
     layouts=[layout(row) for row in al+cu]
     body=sum(height for _,height in layouts)
@@ -276,7 +294,7 @@ def forecast_image(forecast,theme="light",show_status=True):
             for j,key in enumerate(keys):
                 left,right=columns[j+1],columns[j+2]
                 if key=="status":
-                    status=row[key].strip()
+                    status=cell_text(row[key])
                     if status:
                         is_done="PREDAT" in status.upper()
                         d.rounded_rectangle((left+8,y+5,right-8,y+row_height-5),radius=12,
@@ -286,9 +304,10 @@ def forecast_image(forecast,theme="light",show_status=True):
                     for n,line in enumerate(lines[key]):
                         label(d,(left+8,y+(row_height-18*len(lines[key]))/2+n*18),line,13,p["ink"],width=right-left-16)
                 elif key in ("km","tons"):
+                    if not row[key]:continue
                     label(d,((left+right)/2,y+row_height/2),amount(row[key]),14,p["ink"],anchor="mm",width=right-left-12)
                 else:
-                    label(d,((left+right)/2,y+row_height/2),row[key],13,p["ink"],anchor="mm",width=right-left-12)
+                    label(d,((left+right)/2,y+row_height/2),cell_text(row[key]),13,p["ink"],anchor="mm",width=right-left-12)
             y+=row_height
             d.line((30,y,1644,y),fill=p["line"])
 
