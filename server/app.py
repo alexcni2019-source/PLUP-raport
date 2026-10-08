@@ -18,6 +18,8 @@ from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
 from server import smart, table_import, identity
 from server.corporate import plan_image, production_image, forecast_image
+from server import source_table
+from server.source_render import SourceRenderError
 from server.ocr import import_plan, import_forecast, ImportError as PlanImportError
 
 
@@ -27,7 +29,7 @@ FIELDS = ("al", "cu", "backlogAl", "backlogCu", "wasteAl", "wasteCu")
 LABELS = ("Aluminiu predat", "Cupru predat", "Backlog aluminiu", "Backlog cupru", "Deșeu aluminiu", "Deșeu cupru")
 EXTRA = (("op_asumreal","Asumat / realizat"),("op_status","Realizat vs. status"),("op_plan","Realizat vs. plan"),("op_previz","Previzionat schimbul 1"),("op_backal","Backlog aluminiu operațional"),("op_backcu","Backlog cupru operațional"),("op_rigid1","SF Rigid 1"),("op_rigid2","SF Rigid 2"),("op_rigid3","SF Rigid 3"),("op_multi1","SF Multifir 8 căi 1"),("op_multi2","SF Multifir 8 căi 2"),("op_niehoff","SF 16 căi Niehoff"),("op_beta3","SF 16 căi Beta 3"),("op_stocal","Stoc aluminiu"),("op_stoccu","Stoc cupru"),("obs","Observații"))
 ZERO = Decimal("0")
-MAX_BYTES = 262144
+MAX_BYTES = 1048576
 PLAN_FIELDS = ("client","product","planned","handed","wire","spool","bar","vane","cable","mi","armored","mf","goods","notes")
 PLAN_NUMERIC = ("planned","handed","wire","spool","bar","vane","cable","mi","armored","mf","goods")
 FORECAST_FIELDS = ("material","product","km","tons","client","measure","status","notes")
@@ -65,6 +67,7 @@ def read_amount(raw: object) -> Decimal:
 
 
 def process(data: object) -> dict:
+    data,source=source_table.split(data)
     if not isinstance(data, dict) or set(data) != {"mode", "date", "values"}:
         raise InvalidReport("Structură invalidă a raportului.")
     mode, values = data["mode"], data["values"]
@@ -103,17 +106,18 @@ def process(data: object) -> dict:
             totals[key] += summary[key]
         items.append({"date": day.isoformat(), "values": fields, "extras":extras, **summary, "percent": waste / processed * 100 if processed else ZERO})
     totals["percent"] = totals["waste"] / totals["processed"] * 100 if totals["processed"] else ZERO
-    return {"mode": mode, "date": start.isoformat(), "days": items, "total": totals}
+    return source_table.attach({"mode": mode, "date": start.isoformat(), "days": items, "total": totals},source)
 
 
 def process_plan(data: object) -> dict:
+    data,source=source_table.split(data)
     if not isinstance(data,dict) or set(data)!={"mode","date","week","incoming","rows"} or data["mode"]!="plan":
         raise InvalidReport("Structură invalidă a planului.")
     try: start=date.fromisoformat(data["date"])
     except (TypeError,ValueError) as exc: raise InvalidReport("Data planului este invalidă.") from exc
     if not 2020<=start.year<=2100 or not isinstance(data["week"],str) or not re.fullmatch(r"[\w -]{0,10}",data["week"],re.UNICODE):
         raise InvalidReport("Data sau săptămâna planului este invalidă.")
-    if not isinstance(data["rows"],list) or not 1<=len(data["rows"])<=100:
+    if not isinstance(data["rows"],list) or not (0 if source is not None else 1)<=len(data["rows"])<=100:
         raise InvalidReport("Planul trebuie să aibă între 1 și 100 rânduri.")
     rows=[];totals={material:{key:ZERO for key in PLAN_NUMERIC} for material in ("AL","CU")}
     for raw in data["rows"]:
@@ -129,15 +133,16 @@ def process_plan(data: object) -> dict:
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return {"mode":"plan","date":start.isoformat(),"week":data["week"].strip(),"incoming":read_amount(data["incoming"]),"rows":rows,"totals":totals}
+    return source_table.attach({"mode":"plan","date":start.isoformat(),"week":data["week"].strip(),"incoming":read_amount(data["incoming"]),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:
+    data,source=source_table.split(data)
     if not isinstance(data,dict) or set(data)!={"mode","date","rows"} or data["mode"]!="forecast":
         raise InvalidReport("Structură invalidă a previzului.")
     try:start=date.fromisoformat(data["date"])
     except (TypeError,ValueError) as exc:raise InvalidReport("Data previzului este invalidă.") from exc
-    if not 2020<=start.year<=2100 or not isinstance(data["rows"],list) or not 1<=len(data["rows"])<=100:
+    if not 2020<=start.year<=2100 or not isinstance(data["rows"],list) or not (0 if source is not None else 1)<=len(data["rows"])<=100:
         raise InvalidReport("Previzul trebuie să conțină între 1 și 100 produse.")
     totals={key:{"km":ZERO,"tons":ZERO} for key in ("AL","CU")}
     rows=[]
@@ -155,7 +160,7 @@ def process_forecast(data: object) -> dict:
         totals[row["material"]]["km"]+=row["km"]
         totals[row["material"]]["tons"]+=row["tons"]
         rows.append(row)
-    return {"mode":"forecast","date":start.isoformat(),"rows":rows,"totals":totals}
+    return source_table.attach({"mode":"forecast","date":start.isoformat(),"rows":rows,"totals":totals},source)
 
 
 def database():
@@ -453,6 +458,7 @@ class Handler(BaseHTTPRequestHandler):
                 theme=params.get("theme",["light"])[0]
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
                 page=int(params.get("page",[0])[0]);image=plan_image(report,theme) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1") if report["mode"]=="forecast" and page==0 else production_image(report,page,theme)
+            except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
             remember_generated(body)
             self.respond(200,image,"image/png")

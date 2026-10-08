@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from PIL import Image, ImageDraw
 
 from server.render import HEADERS, KEYS, OPS, amount, font, png, text, wrapped
+from server.source_render import source_image, combined_image
 
 
 LIGHT = {
@@ -53,6 +54,7 @@ def brand(draw, width, stamp, title, palette):
 
 def plan_image(plan,theme="light"):
     p=DARK if theme=="dark" else LIGHT
+    if plan.get("sourceTable"):return png(source_image(plan,p))
     al=[r for r in plan["rows"] if r["material"]=="AL"]
     cu=[r for r in plan["rows"] if r["material"]=="CU"]
     measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
@@ -155,6 +157,8 @@ def production_image(report,page=0,theme="light"):
     extras={} if total else r["extras"]
     stamp=(date.fromisoformat(days[0]["date"]).strftime("%d.%m.%Y")+" – "+date.fromisoformat(days[-1]["date"]).strftime("%d.%m.%Y")) if total else date.fromisoformat(r["date"]).strftime("%d.%m.%Y")
     p=DARK if theme=="dark" else LIGHT
+    if report.get("sourceTable") and not any(k in report["sourceTable"]["columns"] for k in ("al","cu","backlogAl","backlogCu","wasteAl","wasteCu")):
+        return png(source_image(report,p,stamp=stamp))
     measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
     indicators=[]
     for name,key in zip(OPS_LABELS,OPS):
@@ -248,11 +252,12 @@ def production_image(report,page=0,theme="light"):
             d.line((43,yy,1448,yy),fill=p["line"])
         d.line((545,table_start+51,545,bottom),fill=p["line"])
     label(d,(43,height-53),"NRG Cables   |   PLUP Department",13,p["muted"])
-    return png(image)
+    return combined_image(image,report,p,stamp) if report.get("sourceTable") else png(image)
 
 
 def forecast_image(forecast,theme="light",show_status=True):
     p=DARK if theme=="dark" else LIGHT
+    if forecast.get("sourceTable"):return png(source_image(forecast,p,show_status))
     columns=(30,75,450,568,686,879,1089,1236,1644) if show_status else (30,75,490,620,750,970,1190,1644)
     keys=["product","km","tons","client","measure"]+(["status"] if show_status else [])+["notes"]
     headers={"product":"PRODUS","km":"KM","tons":"TONE","client":"CLIENT",

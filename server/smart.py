@@ -1,4 +1,5 @@
 """Private product helpers: deterministic checks, drafts and version history."""
+from server import source_table
 from datetime import date, timedelta, datetime, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -23,7 +24,7 @@ def latest_version(conn,identifier):
 
 def draft_validate(body):
     if not isinstance(body,dict) or set(body)-{'payload','metadata','expected'} or not {'payload','metadata'}<=set(body):raise ValueError('Ciornă invalidă.')
-    p=body['payload'];meta=body['metadata']
+    original=body['payload'];p,_=source_table.split(original);meta=body['metadata']
     if not isinstance(p,dict) or p.get('mode') not in MODES:raise ValueError('Tip de ciornă invalid.')
     if not isinstance(p.get('date'),str) or not 2020<=date.fromisoformat(p['date']).year<=2100:raise ValueError('Data ciornei este invalidă.')
     row_fields={'material','client','product','planned','handed','wire','spool','bar','vane','cable','mi','armored','mf','goods','notes'} if p['mode']=='plan' else {'material','product','km','tons','client','measure','status','notes'}
@@ -52,7 +53,7 @@ def draft_validate(body):
     review=meta.get('review',[])
     if not isinstance(review,list) or len(review)>1500 or any(not isinstance(v,str) or not re.fullmatch(r'\d{1,3}:[a-zA-Z]+',v) for v in review):raise ValueError('Verificări invalide.')
     if meta.get('selectedDate'):date.fromisoformat(meta['selectedDate'])
-    return p,meta
+    return original,meta
 
 def text(val):
     if not isinstance(val,str) or len(val)>120 or any(ord(c)<32 for c in val):raise ValueError('Text invalid în ciornă.')
