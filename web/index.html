@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="hig.css">
+  <link rel="stylesheet" href="smart.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Mergi la conținut</a>
@@ -32,6 +33,12 @@
           <button class="dashboard-card" data-view="weekend" type="button"><span class="card-number">03 / WEEKEND</span><strong>Raport pentru 3 zile</strong><span>Vineri, sâmbătă și duminică separat, cu total comun.</span><b>Completează weekendul →</b></button>
           <button class="dashboard-card" data-view="forecast" type="button"><span class="card-number">04 / PREVIZ</span><strong>Previz zilnic</strong><span>Produse, kilometri, tone și stadiu. Importă tabelul din imagine sau completează manual.</span><b>Completează previzul →</b></button>
         </div>
+        <section id="smart-dashboard" class="smart-home" aria-label="Activitate și evoluție">
+          <div class="smart-heading"><h2>Producția, dintr-o privire</h2><label>Perioadă <select id="smart-period"><option value="7">Ultimele 7 zile</option><option value="30">Ultimele 30 de zile</option></select></label><button id="smart-refresh" class="secondary-button" type="button">Actualizează</button></div>
+          <p id="smart-dashboard-status" role="status"></p><div id="smart-kpis" class="smart-kpis"></div>
+          <div class="smart-home-grid"><section class="smart-surface"><h3>Astăzi și ultimele rapoarte</h3><div id="smart-recent"></div></section><section class="smart-surface"><h3>Ciorne de continuat</h3><div id="smart-drafts"></div><p class="smart-note">Ciornele sunt separate de rapoartele finale și pot fi reluate de pe alt dispozitiv după sincronizare.</p></section></div>
+          <section class="smart-surface"><div class="smart-heading"><h3>Evoluția pe zile</h3><label>Indicator <select id="smart-metric"><option value="handed">Tone predate</option><option value="backlog">Backlog predat</option><option value="waste">Deșeu (t)</option><option value="percent">Deșeu (%)</option></select></label></div><div id="smart-chart" aria-label="Grafic pe zile"></div><details><summary>Vezi valorile exacte</summary><div id="smart-series" class="smart-scroll"></div></details><p id="smart-chart-note" class="smart-note"></p></section>
+        </section>
         <button class="history-link" data-view="history" type="button">Vezi istoricul rapoartelor <span>→</span></button>
       </section>
 
@@ -110,5 +117,7 @@
   <script src="plan.js" defer></script>
   <script src="forecast.js" defer></script>
   <script src="dashboard.js" defer></script>
+  <script src="smart.js" defer></script>
+  <script src="tabular.js" defer></script>
 </body>
 </html>

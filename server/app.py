@@ -1,4 +1,4 @@
-"""Stateless PLUP report API. Run behind an authenticated HTTPS reverse proxy."""
+"""Private PLUP report API with persisted reports, drafts and versions. Run behind an authenticated HTTPS reverse proxy."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -16,6 +16,7 @@ import hmac
 import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
+from server import smart, table_import
 from server.corporate import plan_image, production_image, forecast_image
 from server.ocr import import_plan, import_forecast, ImportError as PlanImportError
 
@@ -183,6 +184,7 @@ def database():
             raise
     conn.execute("CREATE INDEX IF NOT EXISTS reports_recent ON reports(created_at DESC)")
     conn.execute("CREATE TABLE IF NOT EXISTS report_defaults (mode TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    smart.bootstrap(conn)
     return conn
 
 
@@ -215,20 +217,32 @@ def save_report(payload):
     try:
         with conn:
             conn.execute("INSERT INTO reports (id,mode,report_date,created_at,payload) VALUES (?,?,?,?,?)",(record["id"],record["mode"],record["date"],record["created_at"],json.dumps(payload,ensure_ascii=False)))
+            record["version"]=smart.revision(conn,record["id"],payload,"create")
+            conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
     finally:conn.close()
     return record
 
 
-def update_report(identifier, payload):
-    item=process_plan(payload) if isinstance(payload,dict) and payload.get("mode")=="plan" else process_forecast(payload) if isinstance(payload,dict) and payload.get("mode")=="forecast" else process(payload)
+def validate_report(payload):
+    return process_plan(payload) if isinstance(payload,dict) and payload.get("mode")=="plan" else process_forecast(payload) if isinstance(payload,dict) and payload.get("mode")=="forecast" else process(payload)
+
+
+def update_report(identifier, payload, expected=None, action="edit"):
+    item=validate_report(payload)
     conn=database()
     try:
         with conn:
-            result=conn.execute("UPDATE reports SET mode=?,report_date=?,payload=? WHERE id=?",
-                                (item["mode"],item["date"],json.dumps(payload,ensure_ascii=False),identifier))
-            if result.rowcount != 1:raise InvalidReport("Raportul din istoric nu există.")
+            conn.execute("BEGIN IMMEDIATE")
+            previous=conn.execute("SELECT payload FROM reports WHERE id=?",(identifier,)).fetchone()
+            if not previous:raise InvalidReport("Raportul din istoric nu există.")
+            current=smart.latest_version(conn,identifier)
+            if expected is not None and int(expected)!=current:raise InvalidReport("Raportul a fost modificat între timp. Redeschide-l din istoric înainte de salvare.")
+            if not current:smart.revision(conn,identifier,json.loads(previous["payload"]),"baseline")
+            conn.execute("UPDATE reports SET mode=?,report_date=?,payload=? WHERE id=?",(item["mode"],item["date"],json.dumps(payload,ensure_ascii=False),identifier))
+            version=smart.revision(conn,identifier,payload,action)
+            conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
     finally:conn.close()
-    return {"id":identifier,"mode":item["mode"],"date":item["date"]}
+    return {"id":identifier,"mode":item["mode"],"date":item["date"],"version":version}
 
 
 def serialize(result: dict) -> dict:
@@ -286,6 +300,23 @@ class Handler(BaseHTTPRequestHandler):
             token=self.session()
             csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest() if PASSWORD and token else ""
             self.respond(200,json.dumps({"authenticated":bool(token),"csrf":csrf}).encode(),"application/json; charset=utf-8");return
+        if pathname in ("/api/smart/dashboard","/api/smart/drafts","/api/smart/versions"):
+            if not self.authorize():return
+            query=parse_qs(urlsplit(self.path).query);conn=database()
+            try:
+                if pathname.endswith("dashboard"):
+                    days=int(query.get("days",[7])[0])
+                    if days not in (7,30):raise ValueError("Perioadă invalidă.")
+                    result=smart.dashboard(conn,query.get("date",[date.today().isoformat()])[0],days,validate_report)
+                elif pathname.endswith("drafts"):
+                    result=[{"mode":r["mode"],"updated_at":r["updated_at"],"payload":json.loads(r["payload"]),"metadata":json.loads(r["metadata"])} for r in conn.execute("SELECT * FROM drafts")]
+                else:
+                    identifier=query.get("id",[""])[0];uuid.UUID(identifier)
+                    result=[dict(r) for r in conn.execute("SELECT version,created_at,action,payload FROM report_versions WHERE report_id=? ORDER BY version DESC LIMIT 100",(identifier,))]
+                    for r in result:r["payload"]=json.loads(r["payload"])
+            except (ValueError,TypeError):self.error(400,"Solicitare invalidă.");return
+            finally:conn.close()
+            self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
         if pathname=="/api/reports":
             if not self.authorize():return
             try:
@@ -294,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                 offset=max(0,int(query.get("offset",[0])[0]))
             except ValueError: self.error(400,"Limită invalidă.");return
             conn=database()
-            try: records=[dict(row) for row in conn.execute("SELECT id,mode,report_date AS date,created_at FROM reports ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",(limit,offset))]
+            try: records=[dict(row) for row in conn.execute("SELECT id,mode,report_date AS date,created_at,COALESCE((SELECT MAX(created_at) FROM report_versions v WHERE v.report_id=reports.id),created_at) AS updated_at FROM reports ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",(limit,offset))]
             finally: conn.close()
             self.respond(200,json.dumps(records).encode(),"application/json; charset=utf-8");return
         if pathname=="/api/reports/latest":
@@ -311,7 +342,9 @@ class Handler(BaseHTTPRequestHandler):
             try: record=conn.execute("SELECT id,mode,report_date AS date,created_at,payload FROM reports WHERE id=?",(identifier,)).fetchone()
             finally: conn.close()
             if not record: self.error(404,"Raport inexistent.");return
-            result=dict(record);result["payload"]=json.loads(result["payload"])
+            result=dict(record);result["payload"]=json.loads(result["payload"]);conn=database()
+            try:result["version"]=smart.latest_version(conn,identifier)
+            finally:conn.close()
             self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
         if pathname == "/":pathname="/index.html"
         if pathname.startswith("/api/"):
@@ -323,7 +356,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts=urlsplit(self.path);path=parts.path
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import","/api/forecast/import"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -332,11 +365,31 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        limit=8_000_200 if path in ("/api/plan/import","/api/forecast/import") else MAX_BYTES
+        limit=8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table") else MAX_BYTES
         if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
+            if path=="/api/smart/table":
+                result=table_import.read(body)
+                self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
+            if path in ("/api/smart/check","/api/smart/draft","/api/smart/restore"):
+                if path.endswith("check"):
+                    conn=database()
+                    try:result=smart.checks(body,validate_report,conn)
+                    finally:conn.close()
+                elif path.endswith("draft"):
+                    conn=database()
+                    try:result=smart.draft_save(conn,body)
+                    finally:conn.close()
+                else:
+                    if not isinstance(body,dict) or set(body)!={"id","version","expected"} or type(body.get("version")) is not int or type(body.get("expected")) is not int:raise InvalidReport("Restaurare invalidă.")
+                    uuid.UUID(body["id"]);conn=database()
+                    try:old=conn.execute("SELECT payload FROM report_versions WHERE report_id=? AND version=?",(body["id"],int(body["version"]))).fetchone()
+                    finally:conn.close()
+                    if not old:raise InvalidReport("Versiunea nu există.")
+                    result=update_report(body["id"],json.loads(old["payload"]),body["expected"],"restore")
+                self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path in ("/api/plan/import","/api/forecast/import"):
                 if not isinstance(body,dict) or set(body)!={"image"}:
                     raise PlanImportError("Imagine invalidă.")
@@ -358,8 +411,8 @@ class Handler(BaseHTTPRequestHandler):
                 saved=save_report(body)
                 self.respond(201,json.dumps(saved).encode(),"application/json; charset=utf-8");return
             report=process_plan(body) if isinstance(body,dict) and body.get("mode")=="plan" else process_forecast(body) if isinstance(body,dict) and body.get("mode")=="forecast" else process(body)
-        except (ValueError,UnicodeDecodeError) as exc:
-            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) else "Raport invalid.");return
+        except (ValueError,UnicodeDecodeError,TypeError,OverflowError) as exc:
+            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) or (path.startswith("/api/smart/") and type(exc) is ValueError) else "Raport invalid.");return
         if path=="/api/render":
             try:
                 params=parse_qs(parts.query)
@@ -388,8 +441,8 @@ class Handler(BaseHTTPRequestHandler):
         length=self.headers.get("Content-Length","")
         if not length.isdecimal() or int(length)>MAX_BYTES:
             self.error(413,"Raport prea mare.");return
-        try:record=update_report(identifier,json.loads(self.rfile.read(int(length))))
-        except (ValueError,UnicodeDecodeError) as exc:
+        try:record=update_report(identifier,json.loads(self.rfile.read(int(length))),self.headers.get("X-Report-Version"))
+        except (ValueError,UnicodeDecodeError,TypeError,OverflowError) as exc:
             self.error(400,str(exc) if isinstance(exc,InvalidReport) else "Raport invalid.");return
         self.respond(200,json.dumps(record).encode(),"application/json; charset=utf-8")
 
