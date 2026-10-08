@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="hig.css">
   <link rel="stylesheet" href="smart.css">
+  <link rel="stylesheet" href="minimal.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Mergi la conținut</a>
@@ -21,6 +22,13 @@
       <div class="header-side"><span class="status-dot"></span><span class="header-caption">Generator raport producție</span><button class="back-button" data-view="history" type="button">Istoric</button><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Activează modul întunecat" aria-pressed="false">◐ <span>Dark mode</span></button><button id="theme-system" class="text-button theme-system" type="button" aria-label="Folosește aspectul sistemului">Auto</button></div>
     </header>
 
+    <nav class="primary-nav" aria-label="Module PLUP">
+      <button type="button" data-view="dashboard" aria-current="page">Acasă</button>
+      <button type="button" data-view="plan">Plan</button>
+      <button type="button" data-view="weekday">Producție</button>
+      <button type="button" data-view="forecast">Previz</button>
+      <button type="button" data-view="history">Istoric</button>
+    </nav>
     <main id="main-content" tabindex="-1">
       <section class="intro" id="dashboard-view">
         <div class="eyebrow">PRODUCȚIE · AL / CU</div>

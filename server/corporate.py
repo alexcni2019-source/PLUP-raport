@@ -9,17 +9,18 @@ from server.render import HEADERS, KEYS, OPS, amount, font, png, text, wrapped
 
 
 LIGHT = {
-    "bg":"#f5f8fc","paper":"#ffffff","ink":"#0b2859","muted":"#526788",
-    "line":"#d6e2f0","head":"#ecf4fe","stripe":"#f6f9fd","pill":"#e8eef8",
-    "blue":"#c6e2ff","green":"#d7f6df","yellow":"#fff2c0",
-    "accent":"#1681ee","success":"#197338","success_bg":"#d8f5d9"
+    "bg":"#f5f5f7","paper":"#ffffff","ink":"#202329","muted":"#606673",
+    "line":"#e0e3e8","head":"#f0f2f5","stripe":"#f8f9fb","pill":"#edf0f5",
+    "blue":"#eaf2fd","green":"#eaf4ef","yellow":"#f2f3f6",
+    "accent":"#0969da","success":"#267d4c","success_bg":"#e7f3ed"
 }
 DARK = {
-    "bg":"#071522","paper":"#0d2030","ink":"#f0f6ff","muted":"#a7c0d1",
-    "line":"#304b5e","head":"#1d3b53","stripe":"#10283a","pill":"#203b52",
-    "blue":"#07538e","green":"#075139","yellow":"#69551b",
-    "accent":"#5ab6fc","success":"#c1f7c9","success_bg":"#176c3b"
+    "bg":"#151619","paper":"#202125","ink":"#f1f3f7","muted":"#adb3bf",
+    "line":"#383b43","head":"#292b31","stripe":"#24262c","pill":"#30343d",
+    "blue":"#263950","green":"#263c32","yellow":"#303138",
+    "accent":"#80b9ff","success":"#80c6a0","success_bg":"#263c32"
 }
+
 X = [30,69,193,384,516,622,701,780,874,966,1048,1149,1233,1325,1442,1644]
 
 
@@ -43,12 +44,10 @@ def cell_text(value):
 def brand(draw, width, stamp, title, palette):
     p=palette
     label(draw,(29,20),"NRG Cables",40,p["ink"],bold=True,width=465)
-    draw.line((309,24,309,68),fill=p["muted"],width=2)
     label(draw,(339,31),"PLUP Department",24,p["muted"])
     caption=f"{stamp}  ·  {title}"
     caption_width=draw.textlength(caption,font=font(22,True))
     x=max(630,round(width-caption_width-57))
-    if p is LIGHT:draw.rounded_rectangle((x-17,18,width-25,77),radius=13,fill=p["head"],outline=p["line"])
     label(draw,(x,35),caption,22,p["ink"],bold=True,width=width-x-42)
 
 
@@ -203,8 +202,8 @@ def production_image(report,page=0,theme="light"):
     label(d,(65,638),amount(vals["wasteCu"],2)+" t",22,p["ink"],bold=True,width=170)
     d.line((246,532,246,695),fill=p["line"],width=2)
     ring=(338,525,520,707)
-    ring_base="#b5c9d6" if theme=="light" else "#356477"
-    ring_value="#20a965" if theme=="light" else "#55e19b"
+    ring_base="#e3e8f0" if theme=="light" else "#3b424e"
+    ring_value=p["success"]
     d.arc(ring,0,359,fill=ring_base,width=26)
     share=max(0,min(100,float(r["percent"])))
     if share:d.arc(ring,-90,-90+max(2,round(3.6*share)),fill=ring_value,width=26)
@@ -223,7 +222,7 @@ def production_image(report,page=0,theme="light"):
     label(d,(772,495),"PREDARE ȘI BACKLOG",17,p["ink"],bold=True)
     maximum=max(float(vals["al"]),float(vals["cu"]),1)
     for y,name,value,bar in ((562,"Aluminiu",vals["al"],p["accent"]),
-                              (647,"Cupru",vals["cu"],"#27ae78" if theme=="light" else "#4fd0a1")):
+                              (647,"Cupru",vals["cu"],p["success"])):
         label(d,(772,y-27),name,15,p["muted"])
         label(d,(1417,y-27),amount(value,2)+" t",16,p["ink"],bold=True,anchor="ra",width=180)
         d.rounded_rectangle((772,y,1419,y+24),radius=9,fill=p["head"])
@@ -233,7 +232,7 @@ def production_image(report,page=0,theme="light"):
     label(d,(1417,705),f'{amount(r["backlog"],2)} t / {amount(r["handed"],2)} t',16,p["ink"],bold=True,anchor="ra",width=360)
     d.rounded_rectangle((772,735,1419,759),radius=9,fill=p["head"])
     width=round(647*min(1,ratio/100))
-    if width:d.rounded_rectangle((772,735,772+max(9,width),759),radius=9,fill="#e2a638")
+    if width:d.rounded_rectangle((772,735,772+max(9,width),759),radius=9,fill=p["accent"])
     label(d,(772,765),f'{amount(Decimal(str(ratio)),1)}% din totalul predat' if r["handed"] else "Fără tone predate",12,p["muted"])
     if indicators:
         d.rounded_rectangle((42,table_start,1449,bottom),radius=10,fill=p["paper"],outline=p["line"])

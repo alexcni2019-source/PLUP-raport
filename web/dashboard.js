@@ -5,6 +5,7 @@
   const names={dashboard:'Centru de raportare PLUP',plan:'Plan de producție',weekday:'Raport zilnic',weekend:'Raport pentru 3 zile',forecast:'Previz zilnic',history:'Istoric rapoarte'};
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const versions=new Map();
+  const scrollPositions=new Map();
   const motion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth';
   function loginGate(message=''){$('login-gate').hidden=false;$('login-loading').hidden=true;if(provider==='github'){$('login-form').hidden=true;let card=$('identity-renew');if(!card){card=document.createElement('div');card.id='identity-renew';card.className='login-card';card.innerHTML='<h2>Reconectare securizată</h2><p>Formularul rămâne în această fereastră. Conectează-te în fila nouă, apoi revino aici.</p><a class="primary-button" href="/auth/login" target="_blank" rel="noopener noreferrer">Continuă cu GitHub</a><button class="secondary-button" type="button">Am revenit · verifică accesul</button>';card.querySelector('button').addEventListener('click',checkAccess);$('login-gate').append(card);}card.hidden=false;card.querySelector('a').focus();return;}$('login-form').hidden=false;$('login-status').textContent=message;$('login-password').focus();}
   window.PLUPFetch=async(url,options={})=>{
@@ -26,12 +27,25 @@
     const view=$(currentView==='weekday'||currentView==='weekend'?'report-view':currentView+'-view');
     const heading=view?.querySelector('h1,h2');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
   }
-  function show(view,{focus=true}={}){
-    viewRevision++;currentView=view;
+  function show(view,{focus=true,restore=true}={}){
+    scrollPositions.set(currentView,window.scrollY);
+    const previous=currentView;
+    const revision=++viewRevision;currentView=view;
     $('dashboard-view').hidden=view!=='dashboard';$('report-view').hidden=!['weekday','weekend'].includes(view);$('report-toolbar').hidden=!['weekday','weekend'].includes(view);$('plan-view').hidden=view!=='plan';$('forecast-view').hidden=view!=='forecast';$('history-view').hidden=view!=='history';
     if(view==='weekday'||view==='weekend'){window.PLUPReport.setMode(view);$('report-toolbar-title').textContent=names[view];}
     document.title=names[view]+' · NRG Cables · PLUP';
-    if(view==='history')void history();if(view==='dashboard')void window.PLUPSmart?.refresh();window.scrollTo({top:0,behavior:motion()});if(focus)focusView();
+    document.querySelectorAll('.primary-nav [data-view]').forEach(button=>{
+      const selected=button.dataset.view===view||(button.dataset.view==='weekday'&&view==='weekend');
+      if(selected)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+    });
+    const restoreScroll=()=>requestAnimationFrame(()=>{
+      if(revision!==viewRevision)return;
+      if(focus&&previous!==view)focusView();
+      window.scrollTo({top:restore?(scrollPositions.get(view)||0):0,behavior:'instant'});
+    });
+    if(view==='history')void history().finally(restoreScroll);
+    else if(view==='dashboard')Promise.resolve(window.PLUPSmart?.refresh()).finally(restoreScroll);
+    else restoreScroll();
   }
   async function history(more=false){
     const revision=++historyRevision,list=$('history-list');if(!more){historyOffset=0;list.textContent='Se încarcă istoricul…';}$('history-status').textContent='';
@@ -49,7 +63,7 @@
       if(mode==='plan')window.PLUPPlan.load(payload?{...payload,date:today}:{mode,date:today,week:'',incoming:'',rows:[{material:'AL'},{material:'CU'}]},null);
       else if(mode==='forecast')window.PLUPForecast.load(payload?{...payload,date:today}:{mode,date:today,rows:[{material:'AL'}]},null);
       else window.PLUPReport.newFrom(payload,mode,today);
-      window.PLUPUI.markClean(mode);window.PLUPSmart?.clearImport(mode);show(mode);
+      window.PLUPUI.markClean(mode);window.PLUPSmart?.clearImport(mode);show(mode,{restore:false});
       $(mode==='plan'?'plan-status':mode==='forecast'?'forecast-status':'api-status').textContent=payload?'Raport nou, precompletat cu ultimele valori. Verifică data și actualizează cantitățile.':'Raport nou. Completează valorile.';
       $('dashboard-status').textContent='';
     }catch(error){$('dashboard-status').textContent=error.message;}finally{opening=false;button.disabled=false;}
