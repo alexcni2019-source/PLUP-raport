@@ -7,22 +7,25 @@
   <title>Raport PLUP · NRG Cables</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="hig.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Mergi la conținut</a>
   <div class="app-shell">
     <header class="masthead">
       <div class="identity">
         <div class="mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <div><div class="brand">NRG Cables</div><div class="department">DEPARTAMENT PLUP</div></div>
       </div>
-      <div class="header-side"><span class="status-dot"></span><span class="header-caption">Generator raport producție</span><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Activează modul întunecat" aria-pressed="false">◐ <span>Dark mode</span></button></div>
+      <div class="header-side"><span class="status-dot"></span><span class="header-caption">Generator raport producție</span><button class="back-button" data-view="history" type="button">Istoric</button><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Activează modul întunecat" aria-pressed="false">◐ <span>Dark mode</span></button><button id="theme-system" class="text-button theme-system" type="button" aria-label="Folosește aspectul sistemului">Auto</button></div>
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
       <section class="intro" id="dashboard-view">
         <div class="eyebrow">PRODUCȚIE · AL / CU</div>
         <h1>Centru de raportare PLUP</h1>
-        <p>Alege raportul pe care vrei să îl completezi sau deschide istoricul.</p>
+        <p>Începe de la ultimele valori, actualizează datele și generează raportul. Rapoartele salvate rămân în istoric.</p>
+        <p id="dashboard-status" class="section-status" role="status" aria-live="polite"></p>
         <div class="dashboard-grid">
           <button class="dashboard-card" data-view="plan" type="button"><span class="card-number">01 / PLAN</span><strong>Plan de producție</strong><span>Client, produs, metal, stocuri și observații, ca în tabelul PLUP.</span><b>Completează planul →</b></button>
           <button class="dashboard-card" data-view="weekday" type="button"><span class="card-number">02 / ZILNIC</span><strong>Raport pentru o zi</strong><span>Aluminiu, cupru, backlog, deșeu și indicatori operaționali.</span><b>Completează raportul →</b></button>
@@ -47,7 +50,7 @@
           </div>
           <p class="date-hint" id="date-hint">Selectează o zi de luni până joi. Pentru vineri–duminică folosește modul Weekend.</p>
           <div id="entry-list" class="entry-list"></div>
-          <div class="editor-footer"><span><span class="privacy-dot"></span> Salvează raportul în istoric.</span><button class="text-button" type="button" id="reset-button">Șterge valorile</button></div>
+          <div class="editor-footer"><span><span class="privacy-dot"></span> Salvează raportul în istoric.</span><button class="text-button destructive" type="button" id="reset-button">Șterge valorile</button></div>
         </section>
 
         <section class="report panel" aria-labelledby="report-title">
@@ -60,7 +63,7 @@
             <div class="paper-charts"><div class="paper-chart"><b>Deșeu / material procesat</b><div class="paper-donut-row"><div id="paper-donut" class="paper-donut"><span id="paper-donut-percent">0,0%</span></div><div class="paper-chart-legend"><span><i></i> Deșeu <strong id="paper-chart-waste">0,00 t</strong></span><span><i></i> Procesat <strong id="paper-chart-processed">0,00 t</strong></span></div></div></div><div class="paper-chart"><b>Predare și backlog</b><div class="paper-bar-label">Aluminiu <strong id="paper-bar-al-value">0,00 t</strong></div><div class="paper-bar-track"><span id="paper-bar-al"></span></div><div class="paper-bar-label">Cupru <strong id="paper-bar-cu-value">0,00 t</strong></div><div class="paper-bar-track cu"><span id="paper-bar-cu"></span></div><div class="paper-bar-label">Backlog / total predat <strong id="paper-bar-backlog-value">0,00 t / 0,00 t</strong></div><div class="paper-bar-track backlog"><span id="paper-bar-backlog"></span></div><small id="paper-bar-backlog-percent">0,0% din totalul predat</small></div></div>
             <div class="paper-foot"><span>NRG Cables · PLUP</span><span>Raport calculat automat din valorile introduse</span></div>
           </div>
-          <div class="report-actions"><button id="save-report-button" class="primary-button" type="button">Salvează în istoric</button><button id="generate-report-image" class="secondary-button" type="button">Generează imaginea raportului</button><p id="api-status" role="status" aria-live="polite">Generează și salvează imaginea PNG.</p><div id="report-images" class="image-gallery"></div></div>
+          <div class="report-actions"><button id="save-report-button" data-busy-label="Se salvează…" class="primary-button" type="button">Salvează în istoric</button><button id="generate-report-image" data-busy-label="Se generează…" class="secondary-button" type="button">Generează imaginea raportului</button><p id="api-status" role="status" aria-live="polite">Generează și salvează imaginea PNG.</p><div id="report-images" class="image-gallery"></div></div>
         </section>
       </div>
       <section class="view-section" id="plan-view" hidden>
@@ -71,9 +74,9 @@
           <div id="plan-paste-zone" class="plan-paste-zone" contenteditable="true" role="textbox" aria-label="Lipește aici imaginea copiată" tabindex="0" spellcheck="false">Pe iPhone, dacă butonul nu poate citi clipboardul, ține apăsat aici și alege „Lipește”. Pe PC poți apăsa Ctrl+V sau ⌘V.</div>
           <div id="plan-review" class="plan-review" hidden><p id="plan-review-message"></p><label><input id="plan-confirm" type="checkbox"> Am verificat toate câmpurile importate și confirm valorile.</label></div>
           <div id="plan-rows"></div>
-          <div class="plan-actions"><button type="button" class="secondary-button" id="add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="add-cu">+ Rând cupru</button></div>
+          <div class="plan-actions"><button type="button" class="secondary-button" id="add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="add-cu">+ Rând cupru</button><button id="undo-plan-row" class="text-button" type="button" hidden>Anulează ștergerea</button></div>
           <div id="plan-totals" class="plan-totals"></div>
-          <div class="plan-actions"><button type="button" class="primary-button" id="save-plan">Salvează planul</button><button type="button" class="secondary-button" id="image-plan">Generează imaginea</button></div>
+          <div class="plan-actions"><button type="button" class="primary-button" id="save-plan" data-busy-label="Se salvează…">Salvează planul</button><button type="button" class="secondary-button" id="image-plan" data-busy-label="Se generează…">Generează imaginea</button></div>
           <p id="plan-status" class="section-status" role="status" aria-live="polite"></p>
           <div id="plan-images" class="image-gallery"></div>
         </div>
@@ -86,10 +89,10 @@
           <div id="forecast-paste-zone" class="plan-paste-zone" contenteditable="true" role="textbox" aria-label="Lipește aici captura previzului" tabindex="0" spellcheck="false">Pe iPhone, ține apăsat aici și alege „Lipește”. Pe PC poți apăsa Ctrl+V sau ⌘V.</div>
           <div id="forecast-review" class="plan-review" hidden><p id="forecast-review-message"></p><label><input id="forecast-confirm" type="checkbox"> Am comparat datele extrase cu imaginea și confirm valorile.</label></div>
           <div id="forecast-rows"></div>
-          <div class="plan-actions"><button type="button" class="secondary-button" id="forecast-add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="forecast-add-cu">+ Rând cupru</button></div>
+          <div class="plan-actions"><button type="button" class="secondary-button" id="forecast-add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="forecast-add-cu">+ Rând cupru</button><button id="undo-forecast-row" class="text-button" type="button" hidden>Anulează ștergerea</button></div>
           <div id="forecast-totals" class="plan-totals"></div>
           <label class="forecast-status-option"><input id="forecast-show-status" type="checkbox" checked> Include coloana „Stadiu” în imaginea pentru producție. Debifează pentru direcțiune.</label>
-          <div class="plan-actions"><button type="button" class="primary-button" id="forecast-save">Salvează previzul</button><button type="button" class="secondary-button" id="forecast-image">Generează imaginea PNG</button></div>
+          <div class="plan-actions"><button type="button" class="primary-button" id="forecast-save" data-busy-label="Se salvează…">Salvează previzul</button><button type="button" class="secondary-button" id="forecast-image" data-busy-label="Se generează…">Generează imaginea PNG</button></div>
           <p id="forecast-status" class="section-status" role="status" aria-live="polite"></p><div id="forecast-images" class="image-gallery"></div>
         </div>
       </section>
@@ -100,8 +103,9 @@
     </main>
     <footer class="site-footer"><span>NRG Cables <i></i> PLUP</span><span>Raport intern de producție</span></footer>
   </div>
-  <div id="login-gate" class="login-gate"><form id="login-form" class="login-card" hidden><div class="eyebrow">NRG CABLES · PLUP</div><h2>Acces la rapoarte</h2><p>Introdu parola aplicației pentru a vedea și salva rapoarte.</p><label for="login-password">Parolă</label><input id="login-password" type="password" autocomplete="current-password" required><button class="primary-button" type="submit">Intră în aplicație</button><p id="login-status" role="alert"></p></form><span id="login-loading">Se verifică accesul…</span></div>
+  <div id="login-gate" class="login-gate"><form id="login-form" class="login-card" hidden><div class="eyebrow">NRG CABLES · PLUP</div><h2>Acces la rapoarte</h2><p>Introdu parola aplicației pentru a vedea și salva rapoarte.</p><label for="login-password">Parolă</label><input id="login-password" type="password" autocomplete="current-password" required><button class="primary-button" data-busy-label="Se verifică…" type="submit">Intră în aplicație</button><p id="login-status" role="alert"></p></form><span id="login-loading">Se verifică accesul…</span></div>
   <script src="theme.js" defer></script>
+  <script src="ui.js" defer></script>
   <script src="app.js" defer></script>
   <script src="plan.js" defer></script>
   <script src="forecast.js" defer></script>
