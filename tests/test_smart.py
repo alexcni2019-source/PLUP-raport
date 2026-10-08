@@ -1,8 +1,11 @@
 import os,tempfile,json,unittest
 _test_dir=tempfile.TemporaryDirectory()
 os.environ['PLUP_DB_PATH']=os.path.join(_test_dir.name,'test.sqlite')
-def tearDownModule():_test_dir.cleanup()
 from server import app,smart,table_import
+from pathlib import Path
+_original_db=app.DB_PATH
+def setUpModule():app.DB_PATH=Path(_test_dir.name)/'test.sqlite'
+def tearDownModule():app.DB_PATH=_original_db;_test_dir.cleanup()
 from io import BytesIO
 import zipfile,base64
 

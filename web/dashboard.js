@@ -1,12 +1,12 @@
 (() => {
   'use strict';
   const $=id=>document.getElementById(id);
-  let csrf='',currentView='dashboard',opening=false,viewRevision=0,historyOffset=0,historyRevision=0;
+  let csrf='',provider='password',currentView='dashboard',opening=false,viewRevision=0,historyOffset=0,historyRevision=0;
   const names={dashboard:'Centru de raportare PLUP',plan:'Plan de producție',weekday:'Raport zilnic',weekend:'Raport pentru 3 zile',forecast:'Previz zilnic',history:'Istoric rapoarte'};
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const versions=new Map();
   const motion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth';
-  function loginGate(message=''){$('login-gate').hidden=false;$('login-loading').hidden=true;$('login-form').hidden=false;$('login-status').textContent=message;$('login-password').focus();}
+  function loginGate(message=''){$('login-gate').hidden=false;$('login-loading').hidden=true;if(provider==='github'){$('login-form').hidden=true;let card=$('identity-renew');if(!card){card=document.createElement('div');card.id='identity-renew';card.className='login-card';card.innerHTML='<h2>Reconectare securizată</h2><p>Formularul rămâne în această fereastră. Conectează-te în fila nouă, apoi revino aici.</p><a class="primary-button" href="/auth/login" target="_blank" rel="noopener noreferrer">Continuă cu GitHub</a><button class="secondary-button" type="button">Am revenit · verifică accesul</button>';card.querySelector('button').addEventListener('click',checkAccess);$('login-gate').append(card);}card.hidden=false;card.querySelector('a').focus();return;}$('login-form').hidden=false;$('login-status').textContent=message;$('login-password').focus();}
   window.PLUPFetch=async(url,options={})=>{
     let payload;try{payload=JSON.parse(options.body||'null');}catch{}
     const form=payload?.mode==='plan'?window.PLUPPlan:payload?.mode==='forecast'?window.PLUPForecast:window.PLUPReport,revision=form?.revision();
@@ -17,7 +17,7 @@
     if(response.ok&&url.startsWith('/api/reports')){const result=await response.clone().json().catch(()=>null);if(result?.id&&Number.isInteger(result.version))versions.set(result.id,result.version);}
     return response;
   };
-  async function checkAccess(){try{const response=await fetch('/api/session',{credentials:'same-origin'});const session=await response.json();if(!response.ok)throw Error();csrf=session.csrf||'';if(session.authenticated){$('login-gate').hidden=true;void window.PLUPSmart?.refresh();}else loginGate();}catch{$('login-loading').textContent='Serverul nu este disponibil. Reîncarcă pagina pentru a reîncerca.';}}
+  async function checkAccess(){try{const response=await fetch('/api/session',{credentials:'same-origin'});const session=await response.json();if(!response.ok)throw Error();provider=session.provider||'password';csrf=session.csrf||'';if(session.authenticated){$('login-gate').hidden=true;if(provider==='github'&&!$('identity-logout')){const b=document.createElement('button');b.id='identity-logout';b.type='button';b.className='secondary-button';b.textContent='Deconectare';b.addEventListener('click',async()=>{if(!confirm('Te deconectezi? Salvează raportul sau ciorna înainte de a continua.'))return;b.disabled=true;try{const r=await window.PLUPFetch('/auth/logout',{method:'POST'});if(!r.ok)throw Error();for(const k of Object.keys(localStorage))if(k.startsWith('plup-'))localStorage.removeItem(k);location.replace('/');}catch{b.disabled=false;b.textContent='Reîncearcă deconectarea';}});document.querySelector('.masthead')?.append(b);}void window.PLUPSmart?.refresh();}else loginGate();}catch{$('login-loading').textContent='Serverul nu este disponibil. Reîncarcă pagina pentru a reîncerca.';}}
   $('login-form').addEventListener('submit',async e=>{
     e.preventDefault();const button=e.submitter||$('login-form').querySelector('button');if(button.disabled)return;button.disabled=true;$('login-status').textContent='Se verifică…';
     try{const response=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('login-password').value}),credentials:'same-origin'});const body=await response.json();if(!response.ok)throw Error(body.error||'Acces refuzat.');csrf=body.csrf;$('login-password').value='';$('login-gate').hidden=true;focusView();void window.PLUPSmart?.refresh();}catch(error){$('login-status').textContent=error.message;}finally{button.disabled=false;}

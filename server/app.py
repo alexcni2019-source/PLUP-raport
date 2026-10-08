@@ -16,7 +16,7 @@ import hmac
 import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
-from server import smart, table_import
+from server import smart, table_import, identity
 from server.corporate import plan_image, production_image, forecast_image
 from server.ocr import import_plan, import_forecast, ImportError as PlanImportError
 
@@ -266,6 +266,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type",mime)
         self.send_header("Content-Length",str(len(body)))
         for key,value in SECURITY.items():self.send_header(key,value)
+        if identity.enabled():self.send_header('Strict-Transport-Security','max-age=31536000')
         for key,value in (headers or {}).items():self.send_header(key,value)
         self.end_headers()
         self.wfile.write(body)
@@ -274,6 +275,7 @@ class Handler(BaseHTTPRequestHandler):
         self.respond(status,json.dumps({"error":message},ensure_ascii=False).encode(),"application/json; charset=utf-8")
 
     def session(self):
+        if identity.enabled():return identity.session(self.headers)
         if not PASSWORD:return "local"
         cookie=self.headers.get("Cookie","")
         match=re.search(r"(?:^|;\s*)plup_session=([0-9]+\.[a-f0-9]{64})(?:;|$)",cookie)
@@ -286,7 +288,7 @@ class Handler(BaseHTTPRequestHandler):
     def authorize(self,mutation=False):
         token=self.session()
         if not token:self.error(401,"Autentificarea este necesară.");return False
-        if mutation and PASSWORD:
+        if mutation and (PASSWORD or identity.enabled()):
             expected=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest()
             if not hmac.compare_digest(self.headers.get("X-CSRF-Token",""),expected):
                 self.error(403,"Sesiune invalidă. Reîncarcă pagina.");return False
@@ -296,10 +298,33 @@ class Handler(BaseHTTPRequestHandler):
         pathname=unquote(urlsplit(self.path).path)
         if pathname=="/health":
             self.respond(200,b"ok","text/plain; charset=utf-8");return
+        if identity.enabled():
+            if pathname=="/auth/style.css":
+                self.respond(200,identity.STYLE,"text/css; charset=utf-8");return
+            if pathname in ("/auth/login","/auth/callback"):
+                try:
+                    if pathname=="/auth/login":
+                        location,binding=identity.start()
+                        self.respond(303,b"","text/plain",{"Location":location,"Set-Cookie":f"__Host-plup_oauth={binding}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600"});return
+                    origin=identity.config()[0]
+                    if self.headers.get('Host') != urlsplit(origin).netloc:
+                        self.error(400,"Adresă de conectare invalidă.");return
+                    token=identity.finish(parse_qs(urlsplit(self.path).query),self.headers)
+                    self.respond(303,b"","text/plain",{"Location":origin+'/',"Set-Cookie":f"__Host-plup_identity={token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={identity.TTL}"});return
+                except ValueError as exc:
+                    self.respond(403,identity.page(str(exc)),"text/html; charset=utf-8");return
+            if pathname != '/api/session' and not self.session():
+                if pathname.startswith('/api/'):
+                    self.error(401,"Conectează-te cu GitHub.")
+                else:
+                    try:identity.config();status,message=200,'Acces permis exclusiv contului autorizat. Nu este necesară instalarea Tailscale.'
+                    except ValueError:status,message=503,'Accesul prin browser este în curs de configurare.'
+                    self.respond(status,identity.page(message),"text/html; charset=utf-8")
+                return
         if pathname=="/api/session":
             token=self.session()
-            csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest() if PASSWORD and token else ""
-            self.respond(200,json.dumps({"authenticated":bool(token),"csrf":csrf}).encode(),"application/json; charset=utf-8");return
+            csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest() if (PASSWORD or identity.enabled()) and token else ""
+            self.respond(200,json.dumps({"authenticated":bool(token),"csrf":csrf,"provider":"github" if identity.enabled() else "password"}).encode(),"application/json; charset=utf-8");return
         if pathname in ("/api/smart/dashboard","/api/smart/drafts","/api/smart/versions"):
             if not self.authorize():return
             query=parse_qs(urlsplit(self.path).query);conn=database()
@@ -356,6 +381,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts=urlsplit(self.path);path=parts.path
+        if identity.enabled() and path=='/api/login':
+            self.error(403,"Conectarea prin parolă este dezactivată. Folosește GitHub.");return
+        if identity.enabled() and path=='/auth/logout':
+            origin=self.headers.get('Origin')
+            if not origin or urlsplit(origin).netloc != self.headers.get('Host'):
+                self.error(403,"Origine neautorizată.");return
+            if not self.authorize(mutation=True):return
+            identity.logout(self.headers)
+            self.respond(200,b'{}','application/json',{'Set-Cookie':'__Host-plup_identity=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'});return
         if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
