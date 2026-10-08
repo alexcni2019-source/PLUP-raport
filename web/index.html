@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f8fc">
+  <title>Raport PLUP · NRG Cables</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="hig.css">
+  <link rel="stylesheet" href="smart.css">
+  <link rel="stylesheet" href="minimal.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Mergi la conținut</a>
+  <div class="app-shell">
+    <header class="masthead">
+      <div class="identity">
+        <div class="mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div><div class="brand">NRG Cables</div><div class="department">DEPARTAMENT PLUP</div></div>
+      </div>
+      <div class="header-side"><span class="status-dot"></span><span class="header-caption">Generator raport producție</span><button class="back-button" data-view="history" type="button">Istoric</button><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Activează modul întunecat" aria-pressed="false">◐ <span>Dark mode</span></button><button id="theme-system" class="text-button theme-system" type="button" aria-label="Folosește aspectul sistemului">Auto</button></div>
+    </header>
+
+    <nav class="primary-nav" aria-label="Module PLUP">
+      <button type="button" data-view="dashboard" aria-current="page">Acasă</button>
+      <button type="button" data-view="plan">Plan</button>
+      <button type="button" data-view="weekday">Producție</button>
+      <button type="button" data-view="forecast">Previz</button>
+      <button type="button" data-view="history">Istoric</button>
+    </nav>
+    <main id="main-content" tabindex="-1">
+      <section class="intro" id="dashboard-view">
+        <div class="eyebrow">PRODUCȚIE · AL / CU</div>
+        <h1>Centru de raportare PLUP</h1>
+        <p>Începe de la ultimele valori, actualizează datele și generează raportul. Rapoartele salvate rămân în istoric.</p>
+        <p id="dashboard-status" class="section-status" role="status" aria-live="polite"></p>
+        <div class="dashboard-grid">
+          <button class="dashboard-card" data-view="plan" type="button"><span class="card-number">01 / PLAN</span><strong>Plan de producție</strong><span>Client, produs, metal, stocuri și observații, ca în tabelul PLUP.</span><b>Completează planul →</b></button>
+          <button class="dashboard-card" data-view="weekday" type="button"><span class="card-number">02 / ZILNIC</span><strong>Raport pentru o zi</strong><span>Aluminiu, cupru, backlog, deșeu și indicatori operaționali.</span><b>Completează raportul →</b></button>
+          <button class="dashboard-card" data-view="weekend" type="button"><span class="card-number">03 / WEEKEND</span><strong>Raport pentru 3 zile</strong><span>Vineri, sâmbătă și duminică separat, cu total comun.</span><b>Completează weekendul →</b></button>
+          <button class="dashboard-card" data-view="forecast" type="button"><span class="card-number">04 / PREVIZ</span><strong>Previz zilnic</strong><span>Produse, kilometri, tone și stadiu. Importă tabelul din imagine sau completează manual.</span><b>Completează previzul →</b></button>
+        </div>
+        <section id="smart-dashboard" class="smart-home" aria-label="Activitate și evoluție">
+          <div class="smart-heading"><h2>Producția, dintr-o privire</h2><label>Perioadă <select id="smart-period"><option value="7">Ultimele 7 zile</option><option value="30">Ultimele 30 de zile</option></select></label><button id="smart-refresh" class="secondary-button" type="button">Actualizează</button></div>
+          <p id="smart-dashboard-status" role="status"></p><div id="smart-kpis" class="smart-kpis"></div>
+          <div class="smart-home-grid"><section class="smart-surface"><h3>Astăzi și ultimele rapoarte</h3><div id="smart-recent"></div></section><section class="smart-surface"><h3>Ciorne de continuat</h3><div id="smart-drafts"></div><p class="smart-note">Ciornele sunt separate de rapoartele finale și pot fi reluate de pe alt dispozitiv după sincronizare.</p></section></div>
+          <section class="smart-surface"><div class="smart-heading"><h3>Evoluția pe zile</h3><label>Indicator <select id="smart-metric"><option value="handed">Tone predate</option><option value="backlog">Backlog predat</option><option value="waste">Deșeu (t)</option><option value="percent">Deșeu (%)</option></select></label></div><div id="smart-chart" aria-label="Grafic pe zile"></div><details><summary>Vezi valorile exacte</summary><div id="smart-series" class="smart-scroll"></div></details><p id="smart-chart-note" class="smart-note"></p></section>
+        </section>
+        <button class="history-link" data-view="history" type="button">Vezi istoricul rapoartelor <span>→</span></button>
+      </section>
+
+      <div class="view-toolbar" id="report-toolbar" hidden><button class="back-button" data-view="dashboard" type="button">← Dashboard</button><span id="report-toolbar-title">Raport producție</span><button class="back-button" data-view="history" type="button">Istoric →</button></div>
+      <div class="workspace" id="report-view" hidden>
+        <section class="editor panel" aria-labelledby="editor-title">
+          <div class="panel-head"><div><span class="section-index">01 / DATE</span><h2 id="editor-title">Introducere valori</h2></div><span class="unit-badge">UNITATE: TONE</span></div>
+          <fieldset class="mode-switch" aria-label="Tipul raportului">
+            <legend class="sr-only">Tipul raportului</legend>
+            <label><input type="radio" name="mode" value="weekday" checked><span>O singură zi</span></label>
+            <label><input type="radio" name="mode" value="weekend"><span>Weekend · 3 zile</span></label>
+          </fieldset>
+          <div class="date-row">
+            <label for="report-date" id="date-label">Data raportului</label>
+            <input id="report-date" type="date" required>
+          </div>
+          <p class="date-hint" id="date-hint">Selectează o zi de luni până joi. Pentru vineri–duminică folosește modul Weekend.</p>
+          <div id="entry-list" class="entry-list"></div>
+          <div class="editor-footer"><span><span class="privacy-dot"></span> Salvează raportul în istoric.</span><button class="text-button destructive" type="button" id="reset-button">Șterge valorile</button></div>
+        </section>
+
+        <section class="report panel" aria-labelledby="report-title">
+          <div class="panel-head report-head"><div><span class="section-index">02 / REZULTAT</span><h2 id="report-title">Raport generat</h2></div><span class="live-badge"><span></span> LIVE</span></div>
+          <div id="print-report" class="report-paper">
+            <div class="paper-header"><div><span class="paper-brand">NRG Cables</span><span class="paper-dept">DEPARTAMENT PLUP</span></div><div class="paper-doc">RAPORT DE PRODUCȚIE<br><span>ALUMINIU & CUPRU</span></div></div>
+            <div class="paper-title"><div><div class="paper-kicker">SITUAȚIE PRODUCȚIE</div><h3 id="paper-heading">Raport zilnic</h3><p id="paper-period"></p></div><div class="paper-code">PLUP / AL·CU</div></div>
+            <div id="paper-days" class="paper-days"></div>
+            <div class="paper-total"><div class="total-label">TOTAL RAPORT <span id="total-period"></span></div><div class="metric-grid"><div class="metric"><span>Total predat AL + CU</span><strong id="total-handed">0,00 <small>t</small></strong></div><div class="metric"><span>Backlog predat</span><strong id="total-backlog">0,00 <small>t</small></strong></div><div class="metric"><span>Deșeu total</span><strong id="total-waste">0,00 <small>t</small></strong></div><div class="metric highlight"><span>Total procesat</span><strong id="total-processed">0,00 <small>t</small></strong></div></div><div class="waste-ratio"><span>Procent deșeu <small>deșeu / total procesat</small></span><strong id="total-percent">0,0%</strong></div></div>
+            <div class="paper-charts"><div class="paper-chart"><b>Deșeu / material procesat</b><div class="paper-donut-row"><div id="paper-donut" class="paper-donut"><span id="paper-donut-percent">0,0%</span></div><div class="paper-chart-legend"><span><i></i> Deșeu <strong id="paper-chart-waste">0,00 t</strong></span><span><i></i> Procesat <strong id="paper-chart-processed">0,00 t</strong></span></div></div></div><div class="paper-chart"><b>Predare și backlog</b><div class="paper-bar-label">Aluminiu <strong id="paper-bar-al-value">0,00 t</strong></div><div class="paper-bar-track"><span id="paper-bar-al"></span></div><div class="paper-bar-label">Cupru <strong id="paper-bar-cu-value">0,00 t</strong></div><div class="paper-bar-track cu"><span id="paper-bar-cu"></span></div><div class="paper-bar-label">Backlog / total predat <strong id="paper-bar-backlog-value">0,00 t / 0,00 t</strong></div><div class="paper-bar-track backlog"><span id="paper-bar-backlog"></span></div><small id="paper-bar-backlog-percent">0,0% din totalul predat</small></div></div>
+            <div class="paper-foot"><span>NRG Cables · PLUP</span><span>Raport calculat automat din valorile introduse</span></div>
+          </div>
+          <div class="report-actions"><button id="save-report-button" data-busy-label="Se salvează…" class="primary-button" type="button">Salvează în istoric</button><button id="generate-report-image" data-busy-label="Se generează…" class="secondary-button" type="button">Generează imaginea raportului</button><p id="api-status" role="status" aria-live="polite">Generează și salvează imaginea PNG.</p><div id="report-images" class="image-gallery"></div></div>
+        </section>
+      </div>
+      <section class="view-section" id="plan-view" hidden>
+        <div class="view-toolbar"><button class="back-button" data-view="dashboard" type="button">← Dashboard</button><span>Plan de producție</span><button class="back-button" data-view="history" type="button">Istoric →</button></div>
+        <div class="panel plan-panel"><div class="panel-head"><div><span class="section-index">PLAN / AL · CU</span><h2>Plan de producție</h2></div><span class="unit-badge">NRG CABLES · PLUP</span></div>
+          <div class="plan-controls"><label>Data planului <input id="plan-date" type="date"></label><label>Săptămâna <input id="plan-week" type="text" maxlength="10" placeholder="W39"></label><label>Intrări metal (t) <input id="plan-incoming" type="text" inputmode="decimal" placeholder="0,00"></label></div>
+          <div class="plan-import"><div><strong>Ai deja tabelul într-o fotografie?</strong><p>Încarcă o captură sau lipește imaginea copiată. Verifici și corectezi datele recunoscute înainte de salvare.</p></div><div class="plan-import-actions"><label class="secondary-button plan-file-button" for="plan-file">Încarcă imaginea <input id="plan-file" type="file" accept="image/*" aria-label="Fotografia sau captura tabelului de plan"></label><button id="plan-paste" class="secondary-button plan-file-button" type="button">Lipește imaginea</button></div></div>
+          <div id="plan-paste-zone" class="plan-paste-zone" contenteditable="true" role="textbox" aria-label="Lipește aici imaginea copiată" tabindex="0" spellcheck="false">Pe iPhone, dacă butonul nu poate citi clipboardul, ține apăsat aici și alege „Lipește”. Pe PC poți apăsa Ctrl+V sau ⌘V.</div>
+          <div id="plan-review" class="plan-review" hidden><p id="plan-review-message"></p><label><input id="plan-confirm" type="checkbox"> Am verificat toate câmpurile importate și confirm valorile.</label></div>
+          <div id="plan-rows"></div>
+          <div class="plan-actions"><button type="button" class="secondary-button" id="add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="add-cu">+ Rând cupru</button><button id="undo-plan-row" class="text-button" type="button" hidden>Anulează ștergerea</button></div>
+          <div id="plan-totals" class="plan-totals"></div>
+          <div class="plan-actions"><button type="button" class="primary-button" id="save-plan" data-busy-label="Se salvează…">Salvează planul</button><button type="button" class="secondary-button" id="image-plan" data-busy-label="Se generează…">Generează imaginea</button></div>
+          <p id="plan-status" class="section-status" role="status" aria-live="polite"></p>
+          <div id="plan-images" class="image-gallery"></div>
+        </div>
+      </section>
+      <section class="view-section" id="forecast-view" hidden>
+        <div class="view-toolbar"><button class="back-button" data-view="dashboard" type="button">← Dashboard</button><span>Previz zilnic</span><button class="back-button" data-view="history" type="button">Istoric →</button></div>
+        <div class="panel plan-panel"><div class="panel-head"><div><span class="section-index">PREVIZ / AL · CU</span><h2>Previz zilnic</h2></div><span class="unit-badge">NRG CABLES · PLUP</span></div>
+          <div class="plan-controls"><label>Data previzului <input id="forecast-date" type="date"></label></div>
+          <div class="plan-import"><div><strong>Importă tabelul din imagine</strong><p>Încarcă captura completă sau lipește imaginea copiată. Verifică fiecare număr și zecimală înainte de salvare.</p></div><div class="plan-import-actions"><label class="secondary-button plan-file-button" for="forecast-file">Încarcă imaginea <input id="forecast-file" type="file" accept="image/*" aria-label="Captura previzului zilnic"></label><button id="forecast-paste" class="secondary-button plan-file-button" type="button">Lipește imaginea</button></div></div>
+          <div id="forecast-paste-zone" class="plan-paste-zone" contenteditable="true" role="textbox" aria-label="Lipește aici captura previzului" tabindex="0" spellcheck="false">Pe iPhone, ține apăsat aici și alege „Lipește”. Pe PC poți apăsa Ctrl+V sau ⌘V.</div>
+          <div id="forecast-review" class="plan-review" hidden><p id="forecast-review-message"></p><label><input id="forecast-confirm" type="checkbox"> Am comparat datele extrase cu imaginea și confirm valorile.</label></div>
+          <div id="forecast-rows"></div>
+          <div class="plan-actions"><button type="button" class="secondary-button" id="forecast-add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="forecast-add-cu">+ Rând cupru</button><button id="undo-forecast-row" class="text-button" type="button" hidden>Anulează ștergerea</button></div>
+          <div id="forecast-totals" class="plan-totals"></div>
+          <label class="forecast-status-option"><input id="forecast-show-status" type="checkbox" checked> Include coloana „Stadiu” în imaginea pentru producție. Debifează pentru direcțiune.</label>
+          <div class="plan-actions"><button type="button" class="primary-button" id="forecast-save" data-busy-label="Se salvează…">Salvează previzul</button><button type="button" class="secondary-button" id="forecast-image" data-busy-label="Se generează…">Generează imaginea PNG</button></div>
+          <p id="forecast-status" class="section-status" role="status" aria-live="polite"></p><div id="forecast-images" class="image-gallery"></div>
+        </div>
+      </section>
+      <section class="view-section" id="history-view" hidden>
+        <div class="view-toolbar"><button class="back-button" data-view="dashboard" type="button">← Dashboard</button><span>Istoric rapoarte</span></div>
+        <div class="panel history-panel"><div class="panel-head"><div><span class="section-index">ARHIVĂ / DATE</span><h2>Rapoarte salvate</h2></div><button id="refresh-history" class="text-button" type="button">Reîncarcă</button></div><div id="history-list" aria-live="polite"></div><button id="more-history" class="secondary-button" type="button" hidden>Încarcă rapoarte mai vechi</button><p id="history-status" class="section-status" role="status"></p></div>
+      </section>
+    </main>
+    <footer class="site-footer"><span>NRG Cables <i></i> PLUP</span><span>Raport intern de producție</span></footer>
+  </div>
+  <div id="login-gate" class="login-gate"><form id="login-form" class="login-card" hidden><div class="eyebrow">NRG CABLES · PLUP</div><h2>Acces la rapoarte</h2><p>Introdu parola aplicației pentru a vedea și salva rapoarte.</p><label for="login-password">Parolă</label><input id="login-password" type="password" autocomplete="current-password" required><button class="primary-button" data-busy-label="Se verifică…" type="submit">Intră în aplicație</button><p id="login-status" role="alert"></p></form><span id="login-loading">Se verifică accesul…</span></div>
+  <script src="theme.js" defer></script>
+  <script src="ui.js" defer></script>
+  <script src="source-table.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="plan.js" defer></script>
+  <script src="forecast.js" defer></script>
+  <script src="dashboard.js" defer></script>
+  <script src="smart.js" defer></script>
+  <script src="tabular.js" defer></script>
+</body>
+</html>
