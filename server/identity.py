@@ -20,6 +20,23 @@ def enabled():
     return os.environ.get('PLUP_AUTH_MODE', '') == 'github'
 
 
+def configuration_issues():
+    """Only variable names, never credential values, for operator diagnostics."""
+    origin = os.environ.get('PLUP_PUBLIC_ORIGIN', '').rstrip('/')
+    try:
+        parsed = urlsplit(origin)
+        valid_origin = (parsed.scheme == 'https' and bool(parsed.hostname) and
+                        not any((parsed.username, parsed.password, parsed.path, parsed.query, parsed.fragment)))
+    except ValueError:
+        valid_origin = False
+    issues = [] if valid_origin else ['PLUP_PUBLIC_ORIGIN']
+    for name in ('PLUP_GITHUB_CLIENT_ID', 'PLUP_GITHUB_CLIENT_SECRET'):
+        if not os.environ.get(name, '').strip():issues.append(name)
+    if not os.environ.get('PLUP_GITHUB_ALLOWED_ID', '').isdecimal():
+        issues.append('PLUP_GITHUB_ALLOWED_ID')
+    return issues
+
+
 def config():
     origin = os.environ.get('PLUP_PUBLIC_ORIGIN', '').rstrip('/')
     parsed = urlsplit(origin)

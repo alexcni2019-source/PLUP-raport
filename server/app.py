@@ -486,6 +486,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__=="__main__":
+    if identity.enabled():
+        issues=identity.configuration_issues()
+        print('PLUP identity configuration: '+(', '.join(issues) if issues else 'ready'),flush=True)
     host=os.environ.get("PLUP_HOST","127.0.0.1")
     port=int(os.environ.get("PORT","8000"))
     if host not in ("127.0.0.1","::1","localhost") and (len(PASSWORD)<16 or len(SESSION_SECRET)<32):
