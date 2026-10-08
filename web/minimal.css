@@ -10,3 +10,4 @@ html{scroll-behavior:auto;scroll-padding-top:24px}body{background:var(--bg);font
 /* Override earlier module-specific density rules. */
 .smart-home #smart-chart{overflow:visible;min-width:0}.smart-home #smart-chart svg{min-width:0;max-width:100%}.smart-heading>.secondary-button{width:auto;min-width:0;flex:none;padding-inline:16px}
 @media(max-width:760px){#dashboard-view>.dashboard-grid{grid-template-columns:minmax(0,1fr);gap:12px}}
+@media(max-width:760px){#dashboard-view .dashboard-card{min-height:0;padding:18px 20px;gap:9px}#dashboard-view .dashboard-card strong{font-size:20px}#dashboard-view .dashboard-card b{font-size:13px}}
