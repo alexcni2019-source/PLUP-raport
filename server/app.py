@@ -52,17 +52,24 @@ class InvalidReport(ValueError):
     pass
 
 
-def read_amount(raw: object) -> Decimal:
-    if raw is None or raw == "":
+AMOUNT_LABELS = dict(zip(FIELDS, LABELS)) | dict(zip(PLAN_NUMERIC, ("Metal planificat", "Metal predat", "Sârmă", "Stoc lită", "Stoc fune / bară", "Stoc vane", "Stoc cablat", "Stoc M.I.", "Stoc armat", "Stoc M.F.", "Marfă predată"))) | {"km":"KM", "tons":"Tone"}
+
+
+def read_amount(raw: object, context: str = "Valoare") -> Decimal:
+    if raw is None:
         return ZERO
-    if not isinstance(raw, str) or not re.fullmatch(r"\d{1,7}(?:[.,]\d{1,4})?", raw):
-        raise InvalidReport("Valorile trebuie să fie numere pozitive, cu maximum 4 zecimale.")
+    if isinstance(raw, str):
+        raw = raw.strip().replace("\u00a0", "").replace("\u202f", "").replace(" ", "")
+        if raw in ("", "-", "—"):
+            return ZERO
+    if not isinstance(raw, str) or not re.fullmatch(r"\d{1,7}(?:[.,]\d{1,12})?", raw):
+        raise InvalidReport(f'{context}: valoarea „{str(raw)[:80]}” nu este numerică. Folosește virgulă sau punct pentru zecimale (maximum 12).')
     try:
         value = Decimal(raw.replace(",", "."))
     except InvalidOperation as exc:
-        raise InvalidReport("Valoare numerică invalidă.") from exc
+        raise InvalidReport(f"{context}: valoare numerică invalidă.") from exc
     if value > Decimal("1000000"):
-        raise InvalidReport("O valoare depășește limita permisă.")
+        raise InvalidReport(f"{context}: valoarea depășește limita de 1.000.000.")
     return value
 
 
@@ -90,7 +97,7 @@ def process(data: object) -> dict:
         raw = values.get(day.isoformat(), {})
         if not isinstance(raw, dict) or set(raw) - set(FIELDS) - {key for key,_ in EXTRA}:
             raise InvalidReport("Câmpuri invalide în raport.")
-        fields = {key: read_amount(raw.get(key, "")) for key in FIELDS}
+        fields = {key: read_amount(raw.get(key, ""), f"{day.isoformat()} · {AMOUNT_LABELS[key]}") for key in FIELDS}
         extras = {}
         for key,_ in EXTRA:
             value=raw.get(key,"")
@@ -120,20 +127,20 @@ def process_plan(data: object) -> dict:
     if not isinstance(data["rows"],list) or not (0 if source is not None else 1)<=len(data["rows"])<=100:
         raise InvalidReport("Planul trebuie să aibă între 1 și 100 rânduri.")
     rows=[];totals={material:{key:ZERO for key in PLAN_NUMERIC} for material in ("AL","CU")}
-    for raw in data["rows"]:
+    for index, raw in enumerate(data["rows"], 1):
         if not isinstance(raw,dict) or set(raw)!={"material",*PLAN_FIELDS} or raw["material"] not in ("AL","CU"):
             raise InvalidReport("Rând invalid în plan.")
         row={"material":raw["material"]}
         for key in PLAN_FIELDS:
             val=raw[key]
             if key in PLAN_NUMERIC:
-                row[key]=read_amount(val)
+                row[key]=read_amount(val, f"Rând {index} · {raw.get('product', '')} · {AMOUNT_LABELS[key]}")
                 totals[row["material"]][key]+=row[key]
             elif not isinstance(val,str) or len(val)>120 or any(ord(char)<32 for char in val):
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return source_table.attach({"mode":"plan","date":start.isoformat(),"week":data["week"].strip(),"incoming":read_amount(data["incoming"]),"rows":rows,"totals":totals},source)
+    return source_table.attach({"mode":"plan","date":start.isoformat(),"week":data["week"].strip(),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:
@@ -146,10 +153,10 @@ def process_forecast(data: object) -> dict:
         raise InvalidReport("Previzul trebuie să conțină între 1 și 100 produse.")
     totals={key:{"km":ZERO,"tons":ZERO} for key in ("AL","CU")}
     rows=[]
-    for raw in data["rows"]:
+    for index, raw in enumerate(data["rows"], 1):
         if not isinstance(raw,dict) or set(raw)!=set(FORECAST_FIELDS) or raw["material"] not in ("AL","CU"):
             raise InvalidReport("Rând invalid în previz.")
-        row={"material":raw["material"],"km":read_amount(raw["km"]),"tons":read_amount(raw["tons"])}
+        row={"material":raw["material"],"km":read_amount(raw["km"], f"Rând {index} · {raw.get('product', '')} · KM"),"tons":read_amount(raw["tons"], f"Rând {index} · {raw.get('product', '')} · Tone")}
         for key in ("product","client","measure","status","notes"):
             value=raw[key]
             if not isinstance(value,str) or len(value)>120 or any(ord(char)<32 for char in value):
