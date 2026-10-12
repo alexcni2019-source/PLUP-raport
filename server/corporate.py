@@ -493,7 +493,13 @@ def forecast_image(forecast,theme="light",show_status=True):
     from server.source_render import MAX_PIXELS,SourceRenderError
     p=DARK if theme=="dark" else LIGHT
     table=Image.open(BytesIO(_forecast_table_image(forecast,theme,show_status)))
-    offset=210;width=table.width
+    from server.forecast_clients import distribution
+    clients,note=distribution(forecast)
+    measure=ImageDraw.Draw(Image.new('RGB',(1,1)))
+    client_lines=[wrapped(measure,row['client'],16,535) for row in clients]
+    client_heights=[max(46,18+24*len(lines)) for lines in client_lines]
+    chart_height=88+sum(client_heights)
+    offset=210+chart_height;width=table.width
     if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și sinteza depășesc dimensiunea maximă a imaginii.")
     image=Image.new("RGB",(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image)
     left=(width-1672)//2
@@ -506,4 +512,16 @@ def forecast_image(forecast,theme="light",show_status=True):
         label(d,(x+20,188),amount(totals['tons'],2)+' t' if known('tons') else 'Tone neasociate',28,color,bold=True,width=480)
         label(d,(x+20,229),amount(totals['km'],2)+' km' if known('km') else 'KM neasociați',16,p['ink'])
     label(d,(left+30,276),"Cantități previzionate; kilometrii și tonele sunt afișate separat.",13,p['muted'])
+    label(d,(left+30,309),"DISTRIBUȚIA TONELOR PREVIZIONATE PE CLIENȚI",18,p['ink'],bold=True)
+    maximum=max([float(row['tons']) for row in clients]+[1]);y=349
+    colors=[p['accent'],p['success'],'#ef9b50' if theme=='dark' else '#b76517','#8b84d5','#42a5ac']
+    for i,(row,lines,h) in enumerate(zip(clients,client_lines,client_heights)):
+        for j,line in enumerate(lines):label(d,(left+30,y+(h-24*len(lines))/2+j*24),line,16,p['ink'])
+        center=y+h/2
+        d.rounded_rectangle((left+595,center-8,left+1330,center+8),radius=6,fill=p['head'])
+        bar=735*float(row['tons'])/maximum
+        d.rounded_rectangle((left+595,center-8,left+595+max(6,bar),center+8),radius=6,fill=colors[i%len(colors)])
+        label(d,(left+1350,center-11),amount(row['tons'],2)+' t · '+amount(row['percent'],1)+'%',17,p['ink'],bold=True,width=290)
+        y+=h
+    label(d,(left+30,y+10),note,13,p['muted'])
     return png(image)
