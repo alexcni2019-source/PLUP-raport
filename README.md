@@ -54,3 +54,7 @@ Valorile din exemplul de mai sus sunt demonstrative; folosește secrete generate
 - Istoric: fiecare salvare creează o intrare nouă, cu dată și ora salvării; o intrare poate fi redeschisă.
 
 Imaginile sunt generate pe server din date validate. Pe iOS, imaginea se poate salva prin apăsare lungă din previzualizare, dacă navigatorul nu descarcă direct fișierul.
+
+### Exporturi separate pentru plan și previz
+
+Butonul „Generează cele două imagini PNG” produce două descărcări din aceleași date: la previz, execuția și diagramele separat de lista tabelară; la plan, analiza și diagramele separat de lista produselor. Fiecare PNG păstrează data și tema. Opțiunea Stadiu se aplică listei de previz. Dacă generarea eșuează, previzualizările anterioare și formularul rămân disponibile.

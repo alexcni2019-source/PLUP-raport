@@ -141,12 +141,14 @@ def _plan_table_image(plan,theme="light"):
     return png(image)
 
 
-def plan_image(plan,theme="light",insights=None):
+def plan_image(plan,theme="light",insights=None,section="all"):
     from io import BytesIO
     from server.plan_analysis import build
     from server.source_render import MAX_PIXELS,SourceRenderError
     p=DARK if theme=="dark" else LIGHT
-    table=Image.open(BytesIO(_plan_table_image(plan,theme)))
+    if section not in ("all","summary","table"):raise ValueError("Secțiune invalidă")
+    if section=="table":return _plan_table_image(plan,theme)
+    table=Image.open(BytesIO(_plan_table_image(plan,theme))) if section=="all" else None
     if insights is None:
         raw={"rows":[{k:str(v) for k,v in row.items()} for row in plan['rows']]}
         if plan.get('sourceTable'):raw['sourceTable']=plan['sourceTable']
@@ -159,16 +161,20 @@ def plan_image(plan,theme="light",insights=None):
         parts=[title+': '+amount(insights['groups'][m][key],2)+' t' for key,title in [('planned','planificat'),('handed','predat')] if insights['group_present'][m][key] and insights[key] is not None]
         if parts:group_lines.append((m,m+' · '+' / '.join(parts)))
     stock_parts=[title+': '+amount(insights['ton_stocks'][key],2)+' t' for key,title in [('wire','Sârmă'),('spool','Lită')] if insights['ton_stocks'][key] is not None]
-    if not cards and not stages and not metrics and not stock_parts:return png(table)
+    if not cards and not stages and not metrics and not stock_parts and table is not None:return png(table)
     y=140
     if cards:y=280
     if group_lines:y+=30
     if stock_parts:y+=27
     chart_top=y+15
     end=max(chart_top+45+len(stages)*48 if stages else chart_top,chart_top+95+len(metrics)*34 if metrics else chart_top)
-    offset=end-87+20;width=table.width
-    if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError('Tabelul și diagramele depășesc dimensiunea maximă a imaginii.')
-    image=Image.new('RGB',(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image);left=(width-1672)//2
+    offset=end-87+20;width=table.width if table is not None else 1672
+    height=table.height+offset if table is not None else end+30
+    if width*height>MAX_PIXELS:raise SourceRenderError('Tabelul și diagramele depășesc dimensiunea maximă a imaginii.')
+    image=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(image);left=(width-1672)//2
+    if table is not None:
+        image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset))
+    else:brand(d,width,date.fromisoformat(plan['date']).strftime('%d.%m.%Y'),f"PLAN {plan['week'].upper()}",p)
     def txt(x,y,t,size=16,color=None,bold=False,w=None):label(d,(left+x,y),t,size,color or p['ink'],bold=bold,width=w)
     txt(30,103,'PLAN DE PRODUCȚIE',20,bold=True)
     orange='#ef9b50' if theme=='dark' else '#b76517'
@@ -486,11 +492,13 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
     return png(image)
 
 
-def forecast_image(forecast,theme="light",show_status=True):
+def forecast_image(forecast,theme="light",show_status=True,section="all"):
     from io import BytesIO
     from server.source_render import MAX_PIXELS,SourceRenderError
     p=DARK if theme=="dark" else LIGHT
-    table=Image.open(BytesIO(_forecast_table_image(forecast,theme,show_status)))
+    if section not in ("all","summary","table"):raise ValueError("Secțiune invalidă")
+    if section=="table":return _forecast_table_image(forecast,theme,show_status)
+    table=Image.open(BytesIO(_forecast_table_image(forecast,theme,show_status))) if section=="all" else None
     from server.forecast_clients import distribution
     clients,note=distribution(forecast)
     clients=[r for r in clients if not r.get("unknown")]
@@ -504,9 +512,13 @@ def forecast_image(forecast,theme="light",show_status=True):
     work_height=execution.height+14 if execution else 0
     source=forecast.get('sourceTable');known=lambda k:not source or k in source['columns']
     summary_height=210 if known('tons') or known('km') else 0
-    offset=summary_height+chart_height+work_height;width=table.width
-    if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și sinteza depășesc dimensiunea maximă a imaginii.")
-    image=Image.new("RGB",(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image)
+    offset=summary_height+chart_height+work_height;width=table.width if table is not None else 1672
+    height=table.height+offset if table is not None else 87+offset+30
+    if width*height>MAX_PIXELS:raise SourceRenderError("Tabelul și sinteza depășesc dimensiunea maximă a imaginii.")
+    image=Image.new("RGB",(width,height),p['bg']);d=ImageDraw.Draw(image)
+    if table is not None:
+        image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset))
+    else:brand(d,width,date.fromisoformat(forecast['date']).strftime('%d.%m.%Y'),"PREVIZ ZILNIC",p)
     left=(width-1672)//2
     if summary_height:label(d,(left+30,103),'PREVIZ ZILNIC',19,p['ink'],bold=True)
     for i,(material,title,color,fill) in enumerate([('AL','ALUMINIU',p['accent'],p['blue']),('CU','CUPRU','#ef9b50' if theme=='dark' else '#b76517','#493628' if theme=='dark' else '#fff0df'),('TOTAL','TOTAL PREVIZ',p['success'],p['green'])]):

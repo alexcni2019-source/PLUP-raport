@@ -91,7 +91,7 @@
           <div id="plan-rows"></div>
           <div class="plan-actions"><button type="button" class="secondary-button" id="add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="add-cu">+ Rând cupru</button><button id="undo-plan-row" class="text-button" type="button" hidden>Anulează ștergerea</button></div>
           <div id="plan-totals" class="plan-totals"></div>
-          <div class="plan-actions"><button type="button" class="primary-button" id="save-plan" data-busy-label="Se salvează…">Salvează planul</button><button type="button" class="secondary-button" id="image-plan" data-busy-label="Se generează…">Generează imaginea</button></div>
+          <div class="plan-actions"><button type="button" class="primary-button" id="save-plan" data-busy-label="Se salvează…">Salvează planul</button><button type="button" class="secondary-button" id="image-plan" data-busy-label="Se generează…">Generează cele două imagini PNG</button></div>
           <p id="plan-status" class="section-status" role="status" aria-live="polite"></p>
           <div id="plan-images" class="image-gallery"></div>
         </div>
@@ -107,7 +107,7 @@
           <div class="plan-actions"><button type="button" class="secondary-button" id="forecast-add-al">+ Rând aluminiu</button><button type="button" class="secondary-button" id="forecast-add-cu">+ Rând cupru</button><button id="undo-forecast-row" class="text-button" type="button" hidden>Anulează ștergerea</button></div>
           <div id="forecast-totals" class="plan-totals"></div>
           <label class="forecast-status-option"><input id="forecast-show-status" type="checkbox" checked> Include coloana „Stadiu” în imaginea pentru producție. Debifează pentru direcțiune.</label>
-          <div class="plan-actions"><button type="button" class="primary-button" id="forecast-save" data-busy-label="Se salvează…">Salvează previzul</button><button type="button" class="secondary-button" id="forecast-image" data-busy-label="Se generează…">Generează imaginea PNG</button></div>
+          <div class="plan-actions"><button type="button" class="primary-button" id="forecast-save" data-busy-label="Se salvează…">Salvează previzul</button><button type="button" class="secondary-button" id="forecast-image" data-busy-label="Se generează…">Generează cele două imagini PNG</button></div>
           <p id="forecast-status" class="section-status" role="status" aria-live="polite"></p><div id="forecast-images" class="image-gallery"></div>
         </div>
       </section>
@@ -123,6 +123,7 @@
   <script src="ui.js" defer></script>
   <script src="source-table.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="split-export.js" defer></script>
   <script src="plan.js" defer></script>
   <script src="plan-insights.js" defer></script>
   <script src="forecast.js" defer></script>
