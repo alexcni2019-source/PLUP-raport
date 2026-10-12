@@ -157,7 +157,7 @@ def weekend_image(report,theme="light"):
         if not extras.get(key):continue
         left=wrapped(measure,name,16,390);right=wrapped(measure,extras[key],16,890)
         indicators.append((left,right,max(42,16+24*max(len(left),len(right)))))
-    height=max(1020,920+sum(r[2] for r in indicators))
+    height=max(1360,1243+sum(r[2] for r in indicators))
     image=Image.new("RGB",(1491,height),p["bg"]);d=ImageDraw.Draw(image)
     brand(d,1491,stamp,"RAPORT WEEKEND",p)
     label(d,(42,115),"PRODUCȚIE · VINERI / SÂMBĂTĂ / DUMINICĂ",18,p["muted"],bold=True)
@@ -190,7 +190,26 @@ def weekend_image(report,theme="light"):
             width=238*float(day[key])/maximum
             if width:d.rounded_rectangle((x+68,y,x+68+max(5,width),y+14),radius=5,fill=color)
             label(d,(x+320,y-2),amount(day[key],2)+" t",14,p["ink"],bold=True,width=140)
-    y=817
+    label(d,(42,817),"DEȘEU PE ZI · ALUMINIU ȘI CUPRU",17,p["ink"],bold=True)
+    wx=[42,240,370,500,650,820,990]
+    d.rectangle((42,854,990,896),fill=p["head"])
+    for i,h in enumerate(["ZI","DEȘEU AL","DEȘEU CU","TOTAL DEȘEU","PROCESAT","DEȘEU %"]):label(d,(wx[i]+10,868),h,12,p["muted"],bold=True)
+    for i,day in enumerate(days):
+        y=896+i*46;v=day["values"]
+        d.rectangle((42,y,990,y+46),fill=p["paper"] if i%2==0 else p["stripe"])
+        values=[["Vineri","Sâmbătă","Duminică"][i],amount(v["wasteAl"],2)+" t",amount(v["wasteCu"],2)+" t",amount(day["waste"],2)+" t",amount(day["processed"],2)+" t",amount(day["percent"],1)+"%"]
+        for j,val in enumerate(values):label(d,(wx[j]+10,y+14),val,15,p["ink"],bold=j==3,width=wx[j+1]-wx[j]-20)
+    y=1034;d.rectangle((42,y,990,y+46),fill=p["green"])
+    values=["TOTAL WEEKEND",amount(sum(day["values"]["wasteAl"] for day in days),2)+" t",amount(sum(day["values"]["wasteCu"] for day in days),2)+" t",amount(total["waste"],2)+" t",amount(total["processed"],2)+" t",amount(total["percent"],1)+"%"]
+    for j,val in enumerate(values):label(d,(wx[j]+10,y+14),val,15,p["ink"],bold=True,width=wx[j+1]-wx[j]-20)
+    ring=(1080,862,1260,1042)
+    d.arc(ring,0,359,fill=p["line"],width=22)
+    share=max(0,min(100,float(total["percent"])))
+    if share:d.arc(ring,-90,-90+max(2,round(3.6*share)),fill=p["success"],width=22)
+    label(d,(1170,940),amount(total["percent"],1)+"%",28,p["ink"],bold=True,anchor="mm")
+    label(d,(1170,973),"deșeu / procesat",13,p["muted"],anchor="mm")
+    label(d,(1170,1062),"Procent cumulat weekend",13,p["muted"],anchor="mm")
+    y=1140
     label(d,(42,y),"INDICATORI OPERAȚIONALI · DUMINICĂ",17,p["ink"],bold=True)
     y+=37
     if not indicators:label(d,(42,y),"Nu au fost completați indicatori pentru duminică.",15,p["muted"])

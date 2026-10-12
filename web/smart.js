@@ -17,6 +17,21 @@
   const task=(async()=>{try{const result=await post('/api/smart/draft',{payload:d.payload,metadata:d.metadata,expected});times.set(mode,result.updated_at);drafts.set(mode,{...d,updated_at:result.updated_at});status(mode,'Ciornă sincronizată · '+new Date(result.updated_at).toLocaleTimeString('ro-RO'));}catch(e){status(mode,'Copia locală este păstrată. '+e.message);}finally{pending.delete(mode);if(local.has(mode)&&JSON.stringify(local.get(mode))!==fingerprint)void sync(mode);}})();pending.set(mode,task);await task;
  }
  function saved(mode,id,submitted){times.delete(mode);drafts.delete(mode);if(submitted&&JSON.stringify(controller(mode).payload())!==submitted){schedule(mode);return;}clearTimeout(timers.get(mode));local.delete(mode);drafts.delete(mode);times.delete(mode);try{localStorage.removeItem(key(mode));}catch{}status(mode,'Raport salvat în istoric. Următoarele modificări vor forma o ciornă nouă.');void refresh();}
+ async function resumeLatestReport(){
+  const mode=window.PLUPReport.payload().mode;
+  if(!window.PLUPUI.confirmReplace(mode))return;
+  const b=$('resume-last-production');b.disabled=true;
+  try{
+   const savedDrafts=await request('/api/smart/drafts');
+   const server=savedDrafts.find(d=>d.mode===mode),cached=local.get(mode);
+   if(server){drafts.set(mode,server);times.set(mode,server.updated_at);}else{drafts.delete(mode);times.delete(mode);}
+   const draft=cached&&(!server||cached.updated_at>server.updated_at)?cached:server;
+   if(draft){const copy=structuredClone(draft);controller(mode).restoreDraft(copy);if(copy.metadata.id&&Number.isInteger(copy.metadata.version))window.PLUPDashboard.setVersion(copy.metadata.id,copy.metadata.version);}
+   else{const result=await request('/api/reports/latest?mode='+mode);if(!result.payload)throw Error('Nu există încă un raport sau o ciornă pentru acest tip.');controller(mode).load(result.payload,null);}
+   window.PLUPUI.markDirty(mode);schedule(mode);$('api-status').textContent='Ultimele valori au fost reluate cu datele originale. Completează doar deșeul și generează din nou.';
+  }catch(e){$('api-status').textContent=e.message;}finally{b.disabled=false;}
+ }
+ const resumeButton=document.createElement('button');resumeButton.id='resume-last-production';resumeButton.type='button';resumeButton.className='back-button';resumeButton.textContent='Reia ultimele valori';resumeButton.addEventListener('click',resumeLatestReport);$('report-toolbar').append(resumeButton);
  function drawDrafts(){const combined=new Map(drafts);for(const [m,d] of local){if(!combined.has(m)||d.updated_at>combined.get(m).updated_at)combined.set(m,d);} $('smart-drafts').innerHTML=[...combined].map(([m,d])=>`<div class="smart-record"><div><strong>${esc(names[m])}</strong><span>${esc(d.payload.date)} · ${esc(new Date(d.updated_at).toLocaleString('ro-RO'))}${local.has(m)&&!drafts.has(m)?' · local':''}</span></div><button class="secondary-button" type="button" data-resume="${m}">Continuă</button></div>`).join('')||'<p>Nicio ciornă în lucru.</p>';}
  async function refresh(){if(!authReady())return;const rev=++refreshing;$('smart-dashboard-status').textContent='Se actualizează activitatea…';try{const [data,savedDrafts]=await Promise.all([request(`/api/smart/dashboard?date=${today()}&days=${$('smart-period').value}`),request('/api/smart/drafts')]);if(rev!==refreshing)return;home=data;catalog=data.catalog;drafts.clear();for(const d of savedDrafts){drafts.set(d.mode,d);times.set(d.mode,d.updated_at);}drawDrafts();drawHome();$('smart-dashboard-status').textContent='Date din rapoartele finale salvate. Ciornele nu intră în totaluri.';}catch(e){if(rev===refreshing){$('smart-dashboard-status').textContent=e.message;drawDrafts();}}}
  function drawHome(){const current=home.current,prev=home.previous;const comparison=(a,b,unit)=>prev.count?`Față de perioada anterioară: ${Number(a)>=Number(b)?'+':''}${fmt(Number(a)-Number(b))} ${unit}`:'Nu există rapoarte în perioada anterioară.';
