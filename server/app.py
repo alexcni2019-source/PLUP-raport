@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
 from server import smart, table_import, identity
 from server.corporate import plan_image, production_image, forecast_image
-from server import source_table, plan_analysis
+from server import source_table, plan_analysis, forecast_work
 from server.source_render import SourceRenderError
 from server.ocr import import_plan, import_forecast, ImportError as PlanImportError
 
@@ -154,7 +154,7 @@ def process_forecast(data: object) -> dict:
     totals={key:{"km":ZERO,"tons":ZERO} for key in ("AL","CU")}
     rows=[]
     for index, raw in enumerate(data["rows"], 1):
-        if not isinstance(raw,dict) or set(raw)!=set(FORECAST_FIELDS) or raw["material"] not in ("AL","CU"):
+        if not isinstance(raw,dict) or (set(raw)-forecast_work.FIELDS)!=set(FORECAST_FIELDS) or raw["material"] not in ("AL","CU"):
             raise InvalidReport("Rând invalid în previz.")
         row={"material":raw["material"],"km":read_amount(raw["km"], f"Rând {index} · {raw.get('product', '')} · KM"),"tons":read_amount(raw["tons"], f"Rând {index} · {raw.get('product', '')} · Tone")}
         for key in ("product","client","measure","status","notes"):
@@ -162,12 +162,20 @@ def process_forecast(data: object) -> dict:
             if not isinstance(value,str) or len(value)>120 or any(ord(char)<32 for char in value):
                 raise InvalidReport("Text invalid în previz.")
             row[key]=value.strip()
+        order=raw.get('order','');priority=raw.get('priority','');drum=raw.get('drumLength','')
+        if not isinstance(order,str) or (order and not re.fullmatch(r'[1-9]\d{0,2}',order)):raise InvalidReport(f"Rând {index}: ordinea trebuie să fie un număr între 1 și 999.")
+        if not isinstance(priority,str) or priority.strip().casefold() not in ('','normal','urgent'):raise InvalidReport(f"Rând {index}: prioritatea trebuie să fie Normal sau Urgent.")
+        row['order']=order;row['priority']=priority.strip().casefold() or 'normal'
+        row['drumLength']=read_amount(drum,f"Rând {index} · metri/tambur") if drum not in ('',None) else None
+        if row['drumLength'] is not None and row['drumLength']<=0:raise InvalidReport(f"Rând {index}: lungimea pe tambur trebuie să fie mai mare decât zero.")
         if not row["product"]:
             raise InvalidReport("Completează produsul pentru fiecare rând din previz.")
         totals[row["material"]]["km"]+=row["km"]
         totals[row["material"]]["tons"]+=row["tons"]
         rows.append(row)
-    return source_table.attach({"mode":"forecast","date":start.isoformat(),"rows":rows,"totals":totals},source)
+    orders=[r['order'] for r in rows]
+    if any(orders) and (not all(orders) or len(set(orders))!=len(orders)):raise InvalidReport("Completează o ordine distinctă pentru fiecare produs sau lasă toate câmpurile Ordine goale.")
+    return source_table.attach({"mode":"forecast","date":start.isoformat(),"rows":rows,"totals":totals,"work":forecast_work.build(rows if source else [r for m in ("AL","CU") for r in rows if r["material"]==m])},source)
 
 
 def database():

@@ -4,7 +4,7 @@ from datetime import date
 
 FIELDS = {
  'plan': {'material','client','product','planned','handed','wire','spool','bar','vane','cable','mi','armored','mf','goods','notes'},
- 'forecast': {'material','product','km','tons','client','measure','status','notes'},
+ 'forecast': {'material','product','km','tons','client','measure','status','notes','order','priority','drumLength'},
  'report': {'date','al','cu','backlogAl','backlogCu','wasteAl','wasteCu','op_asumreal','op_status','op_plan','op_previz','op_backal','op_backcu','op_rigid1','op_rigid2','op_rigid3','op_multi1','op_multi2','op_niehoff','op_beta3','op_stocal','op_stoccu','obs'},
 }
 

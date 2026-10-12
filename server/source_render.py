@@ -40,7 +40,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   if len(populated)==1:
    i,value=populated[0];required=max(measure.textlength(line,font=body_font) for line in lines(value))+24
    widths[-1]+=max(0,int(required+1)-sum(widths[i:]))
- image_width=sum(widths)+60;start=102 if with_brand else 60
+ image_width=sum(widths)+60;start=102 if with_brand else 16
  heights=[max(64 if ri==header else 34,14+max((len(lines(row[c] if c<len(row) else '')) for c in columns),default=1)*(26 if ri==header else 22)) for ri,row in enumerate(rows)]
  image_height=start+sum(heights)+38
  if image_width>14000 or image_width*image_height>MAX_PIXELS:raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
@@ -48,7 +48,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  if with_brand:
   title={'plan':'PLAN','forecast':'PREVIZ','weekday':'RAPORT','weekend':'RAPORT 3 ZILE'}[report['mode']]
   brand(d,image_width,stamp or date.fromisoformat(report['date']).strftime('%d.%m.%Y'),title,p)
- else:d.text((30,22),'TABEL IMPORTAT INTEGRAL',font=font(16,True),fill=p['muted'])
+
  y=start
  for ri,(row,height) in enumerate(zip(rows,heights)):
   first=' '.join(row[:3]).strip().upper();total=first.startswith(('TOTAL','INTRARI','INTRĂRI'))

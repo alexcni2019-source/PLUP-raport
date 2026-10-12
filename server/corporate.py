@@ -148,56 +148,54 @@ def plan_image(plan,theme="light",insights=None):
     p=DARK if theme=="dark" else LIGHT
     table=Image.open(BytesIO(_plan_table_image(plan,theme)))
     if insights is None:
-        # Direct render callers can still receive current totals without a DB comparison.
         raw={"rows":[{k:str(v) for k,v in row.items()} for row in plan['rows']]}
-        if plan.get("sourceTable"):raw["sourceTable"]=plan["sourceTable"]
+        if plan.get('sourceTable'):raw['sourceTable']=plan['sourceTable']
         insights=build(plan,raw)
-    offset=790;width=table.width
-    if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și diagramele depășesc dimensiunea maximă a imaginii.")
-    image=Image.new("RGB",(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image)
-    left=(width-1672)//2
+    stages=[r for r in insights['stages'] if r['current'] is not None]
+    comparison=insights['comparison'];metrics=[r for r in comparison['metrics'] if r['current'] is not None and r['previous'] is not None] if comparison else []
+    cards=[(title,insights[key],unit) for title,key,unit in [('METAL PLANIFICAT','planned','t'),('METAL PREDAT','handed','t'),('REALIZARE ÎN TONE','percent','%')] if insights[key] is not None]
+    group_lines=[]
+    for m in ('AL','CU'):
+        parts=[title+': '+amount(insights['groups'][m][key],2)+' t' for key,title in [('planned','planificat'),('handed','predat')] if insights['group_present'][m][key] and insights[key] is not None]
+        if parts:group_lines.append((m,m+' · '+' / '.join(parts)))
+    stock_parts=[title+': '+amount(insights['ton_stocks'][key],2)+' t' for key,title in [('wire','Sârmă'),('spool','Lită')] if insights['ton_stocks'][key] is not None]
+    if not cards and not stages and not metrics and not stock_parts:return png(table)
+    y=140
+    if cards:y=280
+    if group_lines:y+=30
+    if stock_parts:y+=27
+    chart_top=y+15
+    end=max(chart_top+45+len(stages)*48 if stages else chart_top,chart_top+95+len(metrics)*34 if metrics else chart_top)
+    offset=end-87+20;width=table.width
+    if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError('Tabelul și diagramele depășesc dimensiunea maximă a imaginii.')
+    image=Image.new('RGB',(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image);left=(width-1672)//2
     def txt(x,y,t,size=16,color=None,bold=False,w=None):label(d,(left+x,y),t,size,color or p['ink'],bold=bold,width=w)
-    def value(v,unit):return amount(v,2)+' '+unit if v is not None else 'Necompletat'
-    txt(30,106,"PLAN DE PRODUCȚIE · SINTEZĂ ȘI EVOLUȚIE",20,bold=True)
+    txt(30,103,'PLAN DE PRODUCȚIE',20,bold=True)
     orange='#ef9b50' if theme=='dark' else '#b76517'
-    colors=[p['accent'],p['success'],orange];fills=[p['blue'],p['green'],p['stripe']]
-    cards=[('METAL PLANIFICAT',insights['planned'],'t'),('METAL PREDAT',insights['handed'],'t'),('REALIZARE ÎN TONE',insights['percent'],'%')]
+    colors={'METAL PLANIFICAT':p['accent'],'METAL PREDAT':p['success'],'REALIZARE ÎN TONE':orange};fills={'METAL PLANIFICAT':p['blue'],'METAL PREDAT':p['green'],'REALIZARE ÎN TONE':p['stripe']}
     for i,(title,v,unit) in enumerate(cards):
-        x=30+i*546;d.rounded_rectangle((left+x,148,left+x+520,259),radius=12,fill=fills[i],outline=p['line']);txt(x+20,168,title,14,p['muted'],True);txt(x+20,205,value(v,unit),30,colors[i],True,480)
-    if insights['percent'] is not None:
-        d.rounded_rectangle((left+1142,247,left+1622,254),radius=3,fill=p['head'])
-        progress=480*max(0,min(1,float(insights['percent'])/100))
-        if progress:d.rounded_rectangle((left+1142,247,left+1142+max(4,progress),254),radius=3,fill=p['success'])
-    a,c=insights['groups']['AL'],insights['groups']['CU']
-    txt(30,279,f"AL planificat / predat: {value(a['planned'] if insights['planned'] is not None else None,'t')} / {value(a['handed'] if insights['handed'] is not None else None,'t')}",16,p['accent'],True)
-    txt(850,279,f"CU planificat / predat: {value(c['planned'] if insights['planned'] is not None else None,'t')} / {value(c['handed'] if insights['handed'] is not None else None,'t')}",16,orange,True)
-    txt(30,305,f"Stoc sârmă: {value(insights['ton_stocks']['wire'],'t')}  ·  Stoc lită: {value(insights['ton_stocks']['spool'],'t')}",13,p['muted'])
-    txt(30,322,"SITUAȚIA PE FLUX · TOATE POZIȚIILE · KM",18,bold=True)
-    txt(30,351,"Stocuri pe etape și marfă predată; cantitățile nu se adună într-un procent din tone.",13,p['muted'])
-    stages=insights['stages'];maximum=max([float(r['current']) for r in stages if r['current'] is not None]+[1])
-    stage_colors=[p['accent'],'#43a9ac','#7a8fe7','#b084cd','#ef9b50',p['success'],'#4c9bb9']
-    for i,row in enumerate(stages):
-        y=391+i*50;txt(30,y,row['label'],16);txt(700,y,value(row['current'],'km'),16,bold=True,w=140)
-        d.rounded_rectangle((left+240,y+3,left+670,y+19),radius=6,fill=p['head'])
-        if row['current']:
-            bar=430*float(row['current'])/maximum;d.rounded_rectangle((left+240,y+3,left+240+max(6,bar),y+19),radius=6,fill=stage_colors[i])
-    comparison=insights['comparison'];txt(876,322,"EVOLUȚIE · POZIȚII COMUNE",18,bold=True)
-    if comparison:
-        txt(876,351,f"Față de {comparison['date']} · {comparison['common']} poziții comparabile",13,p['muted'])
-        txt(876,375,f"Noi: {comparison['new']} · absente: {comparison['missing']} · ambigue: {comparison['ambiguous']}",13,p['muted'])
-        txt(876,412,"INDICATOR",12,p['muted'],True);txt(1130,412,"ANTERIOR",12,p['muted'],True);txt(1305,412,"ACUM",12,p['muted'],True);txt(1470,412,"DIFERENȚĂ",12,p['muted'],True)
-        for i,row in enumerate(comparison['metrics']):
-            y=445+i*32
-            if i%2:d.rectangle((left+866,y-6,left+1642,y+32),fill=p['stripe'])
-            txt(876,y,row['label'],14,w=235);txt(1130,y,value(row['previous'],row['unit']) if row['previous'] is not None else '—',14,w=160);txt(1305,y,value(row['current'],row['unit']) if row['current'] is not None else '—',14,w=155)
-            delta=row['delta'];txt(1470,y,('+' if delta is not None and delta>0 else '')+value(delta,row['unit']) if delta is not None else '—',14,p['accent'],True,165)
-    else:
-        for j,line in enumerate(['Comparația apare după ce există un plan','salvat sau generat la o dată anterioară.','Produsele noi nu intră în evoluția comparată.']):txt(876,399+j*28,line,16,p['muted'])
-    txt(30,796,"Comparație după material, client și produs. Pozițiile duplicate sau lipsă nu sunt tratate automat ca finalizate.",14,p['muted'])
-    txt(30,826,"Diferențele de stoc nu reprezintă predări. Celulele lipsă nu intră în comparații numerice.",14,p['muted'])
-    if plan.get("sourceTable"):txt(30,852,"Sinteza folosește coloanele asociate; tabelul importat păstrează totalurile originale din sursă.",13,p["muted"])
+        width_card=(1612-24*(len(cards)-1))/len(cards);x=30+i*(width_card+24)
+        d.rounded_rectangle((left+x,140,left+x+width_card,256),radius=12,fill=fills[title],outline=p['line']);txt(x+20,159,title,14,p['muted'],True);txt(x+20,198,amount(v,2)+' '+unit,30,colors[title],True,width_card-40)
+    yy=280 if cards else 140
+    for i,(m,line) in enumerate(group_lines):txt(30+i*820,yy,line,16,p['accent'] if m=='AL' else orange,True)
+    if group_lines:yy+=30
+    if stock_parts:txt(30,yy,' · '.join(stock_parts),15,p['muted'])
+    if stages:
+        txt(30,chart_top,'SITUAȚIA PE FLUX · KM',18,bold=True);maximum=max([float(r['current']) for r in stages]+[1]);color_map=dict(zip(['bar','vane','cable','mi','armored','mf','goods'],[p['accent'],'#43a9ac','#7a8fe7','#b084cd',orange,p['success'],'#4c9bb9']))
+        for i,row in enumerate(stages):
+            y=chart_top+45+i*48;bar_end=670 if metrics else 1450;txt(30,y,row['label'],16);txt(bar_end+30,y,amount(row['current'],2)+' km',16,bold=True,w=145)
+            d.rounded_rectangle((left+240,y+3,left+bar_end,y+19),radius=6,fill=p['head'])
+            if row['current']:
+                bar=(bar_end-240)*float(row['current'])/maximum;d.rounded_rectangle((left+240,y+3,left+240+max(6,bar),y+19),radius=6,fill=color_map[row['key']])
+    if metrics:
+        x=876 if stages else 30;txt(x,chart_top,'EVOLUȚIE',18,bold=True);txt(x,chart_top+30,date.fromisoformat(comparison['date']).strftime('%d.%m.%Y')+' → '+date.fromisoformat(plan['date']).strftime('%d.%m.%Y'),14,p['muted'])
+        columns=[0,254,429,594] if stages else [0,590,1000,1350]
+        for dx,title in zip(columns,['INDICATOR','ANTERIOR','ACUM','DIFERENȚĂ']):txt(x+dx,chart_top+60,title,12,p['muted'],True)
+        for i,row in enumerate(metrics):
+            y=chart_top+91+i*34
+            if i%2:d.rectangle((left+x-10,y-6,left+x+(766 if stages else 1612),y+28),fill=p['stripe'])
+            txt(x,y,row['label'],14,w=235);txt(x+columns[1],y,amount(row['previous'],2)+' '+row['unit'],14,w=160);txt(x+columns[2],y,amount(row['current'],2)+' '+row['unit'],14,w=155);txt(x+columns[3],y,('+' if row['delta']>0 else '')+amount(row['delta'],2)+' '+row['unit'],14,p['accent'],True,165)
     return png(image)
-
 
 OPS_LABELS=["Asumat / Realizat (t) + %","Realizat vs status","Realizat vs plan","Previzionat schimbul 1",
             "Backlog aluminiu (t)","Backlog cupru (t)","SF așteptare · Rigid 1 (km)",
@@ -272,7 +270,7 @@ def weekend_image(report,theme="light"):
     y=1140
     label(d,(42,y),"INDICATORI OPERAȚIONALI · DUMINICĂ",17,p["ink"],bold=True)
     y+=37
-    if not indicators:label(d,(42,y),"Nu au fost completați indicatori pentru duminică.",15,p["muted"])
+
     for i,(left,right,h) in enumerate(indicators):
         d.rectangle((42,y,1449,y+h),fill=p["paper"] if i%2==0 else p["stripe"])
         for j,line in enumerate(left):label(d,(54,y+9+24*j),line,16,p["ink"])
@@ -375,7 +373,7 @@ def production_image(report,page=0,theme="light"):
     d.rounded_rectangle((772,735,1419,759),radius=9,fill=p["head"])
     width=round(647*min(1,ratio/100))
     if width:d.rounded_rectangle((772,735,772+max(9,width),759),radius=9,fill=p["accent"])
-    label(d,(772,765),f'{amount(Decimal(str(ratio)),1)}% din totalul predat' if r["handed"] else "Fără tone predate",12,p["muted"])
+    if r['handed']:label(d,(772,765),f'{amount(Decimal(str(ratio)),1)}%',12,p['muted'])
     if indicators:
         d.rounded_rectangle((42,table_start,1449,bottom),radius=10,fill=p["paper"],outline=p["line"])
         d.rectangle((43,table_start+1,1448,table_start+51),fill=p["head"])
@@ -495,25 +493,33 @@ def forecast_image(forecast,theme="light",show_status=True):
     table=Image.open(BytesIO(_forecast_table_image(forecast,theme,show_status)))
     from server.forecast_clients import distribution
     clients,note=distribution(forecast)
+    clients=[r for r in clients if not r.get("unknown")]
     measure=ImageDraw.Draw(Image.new('RGB',(1,1)))
     client_lines=[wrapped(measure,row['client'],16,535) for row in clients]
     client_heights=[max(46,18+24*len(lines)) for lines in client_lines]
-    chart_height=88+sum(client_heights)
-    offset=210+chart_height;width=table.width
+    chart_height=64+sum(client_heights) if clients else 0
+    from server.forecast_work import build
+    from server.forecast_work_render import work_image
+    execution=work_image(forecast.get('work',build(forecast['rows'])),p)
+    work_height=execution.height+14 if execution else 0
+    source=forecast.get('sourceTable');known=lambda k:not source or k in source['columns']
+    summary_height=210 if known('tons') or known('km') else 0
+    offset=summary_height+chart_height+work_height;width=table.width
     if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și sinteza depășesc dimensiunea maximă a imaginii.")
     image=Image.new("RGB",(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image)
     left=(width-1672)//2
-    label(d,(left+30,103),"PREVIZ ZILNIC · SINTEZĂ",19,p['ink'],bold=True)
+    if summary_height:label(d,(left+30,103),'PREVIZ ZILNIC',19,p['ink'],bold=True)
     for i,(material,title,color,fill) in enumerate([('AL','ALUMINIU',p['accent'],p['blue']),('CU','CUPRU','#ef9b50' if theme=='dark' else '#b76517','#493628' if theme=='dark' else '#fff0df'),('TOTAL','TOTAL PREVIZ',p['success'],p['green'])]):
+        if not summary_height:continue
         x=left+30+i*546;d.rounded_rectangle((x,140,x+520,262),radius=12,fill=fill,outline=p['line'])
         totals=forecast['totals'][material] if material!='TOTAL' else {k:sum(forecast['totals'][m][k] for m in ('AL','CU')) for k in ('km','tons')}
         known=lambda k:not forecast.get('sourceTable') or k in forecast['sourceTable']['columns']
         label(d,(x+20,157),title,14,p['muted'],bold=True)
-        label(d,(x+20,188),amount(totals['tons'],2)+' t' if known('tons') else 'Tone neasociate',28,color,bold=True,width=480)
-        label(d,(x+20,229),amount(totals['km'],2)+' km' if known('km') else 'KM neasociați',16,p['ink'])
-    label(d,(left+30,276),"Cantități previzionate; kilometrii și tonele sunt afișate separat.",13,p['muted'])
-    label(d,(left+30,309),"DISTRIBUȚIA TONELOR PREVIZIONATE PE CLIENȚI",18,p['ink'],bold=True)
-    maximum=max([float(row['tons']) for row in clients]+[1]);y=349
+        if known('tons'):label(d,(x+20,188),amount(totals['tons'],2)+' t',28,color,bold=True,width=480)
+        if known('km'):label(d,(x+20,229),amount(totals['km'],2)+' km',16,p['ink'])
+
+    if clients:label(d,(left+30,summary_height+99),'DISTRIBUȚIA TONELOR PE CLIENȚI',18,p['ink'],bold=True)
+    maximum=max([float(row['tons']) for row in clients]+[1]);y=summary_height+134
     colors=[p['accent'],p['success'],'#ef9b50' if theme=='dark' else '#b76517','#8b84d5','#42a5ac']
     for i,(row,lines,h) in enumerate(zip(clients,client_lines,client_heights)):
         for j,line in enumerate(lines):label(d,(left+30,y+(h-24*len(lines))/2+j*24),line,16,p['ink'])
@@ -523,5 +529,6 @@ def forecast_image(forecast,theme="light",show_status=True):
         d.rounded_rectangle((left+595,center-8,left+595+max(6,bar),center+8),radius=6,fill=colors[i%len(colors)])
         label(d,(left+1350,center-11),amount(row['tons'],2)+' t · '+amount(row['percent'],1)+'%',17,p['ink'],bold=True,width=290)
         y+=h
-    label(d,(left+30,y+10),note,13,p['muted'])
+
+    if execution:image.paste(execution,(left,87+summary_height+chart_height))
     return png(image)

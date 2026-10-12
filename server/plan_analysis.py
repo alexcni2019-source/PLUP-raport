@@ -22,17 +22,18 @@ def build(plan,payload,previous=None,previous_payload=None):
   selected=[r for r in rows if r['material']==material]
   groups[material]={key:sum((r[key] for r in selected),ZERO) for key in ('planned','handed')}
  planned=sum((r['planned'] for r in rows),ZERO);handed=sum((r['handed'] for r in rows),ZERO)
- result={'date':plan['date'],'groups':groups,'planned':planned if entered(payload,'planned') else None,'handed':handed if entered(payload,'handed') else None,'percent':handed/planned*100 if planned and entered(payload,'handed') else None,'stages':[{'key':k,'label':label,'current':sum((r[k] for r in rows),ZERO) if entered(payload,k) else None} for k,label in STAGES],'comparison':None,'ton_stocks':{k:sum((r[k] for r in rows),ZERO) if entered(payload,k) else None for k in ('wire','spool')}}
+ result={'date':plan['date'],'groups':groups,'planned':planned if entered(payload,'planned') else None,'handed':handed if entered(payload,'handed') else None,'percent':handed/planned*100 if planned and entered(payload,'handed') else None,'stages':[{'key':k,'label':label,'current':sum((r[k] for r in rows),ZERO) if entered(payload,k) else None} for k,label in STAGES],'group_present':{m:{k:any(r.get('material')==m and r.get(k) is not None and str(r.get(k,'')).strip() not in ('','-','—') for r in payload['rows']) for k in ('planned','handed')} for m in ('AL','CU')},'comparison':None,'ton_stocks':{k:sum((r[k] for r in rows),ZERO) if entered(payload,k) else None for k in ('wire','spool')}}
  if previous is None:return result
  old=previous['rows'];nc=Counter(identity(r) for r in rows);oc=Counter(identity(r) for r in old)
  current={identity(r):r for r in rows if r['product'].strip() and nc[identity(r)]==1};prior={identity(r):r for r in old if r['product'].strip() and oc[identity(r)]==1}
  common=set(current)&set(prior)
  comparison={'date':previous['date'],'common':len(common),'new':len(set(current)-set(prior)),'missing':len(set(prior)-set(current)),'ambiguous':sum(n for n in nc.values() if n>1)+sum(n for n in oc.values() if n>1),'metrics':[]}
  for key,label,unit in [('handed','Metal predat','t'),('wire','Sârmă','t'),('spool','Lită','t')]+[(k,label,'km') for k,label in STAGES]:
-  usable=bool(common) and all(any(identity(r)==ident and str(r.get(key,'')).strip() not in ('','-','—') for r in raw['rows']) for raw in (payload,previous_payload) for ident in common)
-  now=sum((current[k][key] for k in common),ZERO) if usable else None
-  before=sum((prior[k][key] for k in common),ZERO) if usable else None
-  comparison['metrics'].append({'label':label,'unit':unit,'current':now,'previous':before,'delta':now-before if usable else None})
+  paired={ident for ident in common if all(any(identity(r)==ident and r.get(key) is not None and str(r.get(key,'')).strip() not in ('','-','—') for r in raw['rows']) for raw in (payload,previous_payload))}
+  usable=bool(paired)
+  now=sum((current[k][key] for k in paired),ZERO) if usable else None
+  before=sum((prior[k][key] for k in paired),ZERO) if usable else None
+  comparison['metrics'].append({'label':label,'unit':unit,'current':now,'previous':before,'delta':now-before if usable else None,'positions':len(paired)})
  result['comparison']=comparison;return result
 
 def previous(conn,stamp,validator):

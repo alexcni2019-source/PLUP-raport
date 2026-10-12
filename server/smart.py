@@ -27,7 +27,7 @@ def draft_validate(body):
     original=body['payload'];p,_=source_table.split(original);meta=body['metadata']
     if not isinstance(p,dict) or p.get('mode') not in MODES:raise ValueError('Tip de ciornă invalid.')
     if not isinstance(p.get('date'),str) or not 2020<=date.fromisoformat(p['date']).year<=2100:raise ValueError('Data ciornei este invalidă.')
-    row_fields={'material','client','product','planned','handed','wire','spool','bar','vane','cable','mi','armored','mf','goods','notes'} if p['mode']=='plan' else {'material','product','km','tons','client','measure','status','notes'}
+    row_fields={'material','client','product','planned','handed','wire','spool','bar','vane','cable','mi','armored','mf','goods','notes'} if p['mode']=='plan' else {'material','product','km','tons','client','measure','status','notes','order','priority','drumLength'}
     if p['mode'] in ('plan','forecast'):
         allowed={'mode','date','rows','week','incoming'} if p['mode']=='plan' else {'mode','date','rows'}
         if set(p)!=allowed or not isinstance(p['rows'],list) or len(p['rows'])>100:raise ValueError('Structura ciornei este invalidă.')

@@ -25,5 +25,5 @@ class ForecastClientTests(unittest.TestCase):
    seen=[]
    def record(draw,xy,text,*a,**kw):seen.append(text);return original(draw,xy,text,*a,**kw)
    with patch.object(ImageDraw.ImageDraw,'text',record):blob=forecast_image(report,theme,False)
-   self.assertIn('DISTRIBUȚIA TONELOR PREVIZIONATE PE CLIENȚI',seen);self.assertNotIn('STADIU',seen)
+   self.assertIn('DISTRIBUȚIA TONELOR PE CLIENȚI',seen);self.assertNotIn('STADIU',seen)
    self.assertGreater(Image.open(BytesIO(blob)).height,800)

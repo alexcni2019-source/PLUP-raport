@@ -42,5 +42,5 @@ class PlanAnalysisTests(unittest.TestCase):
     self.assertEqual(result['comparison']['date'],'2026-10-09')
     app.remember_generated(now);self.assertEqual(app.plan_insights(app.process_plan(old),old)['comparison'],None)
     for theme in ('light','dark'):
-     image=Image.open(BytesIO(plan_image(report,theme,result)));self.assertGreater(image.height,1000)
+     image=Image.open(BytesIO(plan_image(report,theme,result)));self.assertGreaterEqual(image.width,1672)
    finally:app.DB_PATH=original
