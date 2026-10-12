@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
 from server import smart, table_import, identity
 from server.corporate import plan_image, production_image, forecast_image
-from server import source_table
+from server import source_table, plan_analysis
 from server.source_render import SourceRenderError
 from server.ocr import import_plan, import_forecast, ImportError as PlanImportError
 
@@ -196,8 +196,16 @@ def database():
             raise
     conn.execute("CREATE INDEX IF NOT EXISTS reports_recent ON reports(created_at DESC)")
     conn.execute("CREATE TABLE IF NOT EXISTS report_defaults (mode TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    conn.execute("CREATE TABLE IF NOT EXISTS plan_snapshots (report_date TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     smart.bootstrap(conn)
     return conn
+
+
+def plan_insights(report,payload):
+    conn=database()
+    try:previous,old=plan_analysis.previous(conn,report["date"],process_plan)
+    finally:conn.close()
+    return plan_analysis.build(report,payload,previous,old)
 
 
 def remember_generated(payload):
@@ -206,6 +214,8 @@ def remember_generated(payload):
         with conn:
             conn.execute("INSERT INTO report_defaults(mode,payload) VALUES (?,?) ON CONFLICT(mode) DO UPDATE SET payload=excluded.payload",
                          (payload["mode"],json.dumps(payload,ensure_ascii=False)))
+            if payload['mode']=='plan':
+                conn.execute("INSERT INTO plan_snapshots VALUES (?,?) ON CONFLICT(report_date) DO UPDATE SET payload=excluded.payload",(payload['date'],json.dumps(payload,ensure_ascii=False)))
     finally:conn.close()
 
 
@@ -402,7 +412,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authorize(mutation=True):return
             identity.logout(self.headers)
             self.respond(200,b'{}','application/json',{'Set-Cookie':'__Host-plup_identity=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'});return
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -441,6 +451,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise PlanImportError("Imagine invalidă.")
                 result=import_plan(body["image"]) if path=="/api/plan/import" else import_forecast(body["image"])
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
+            if path=="/api/plan/analysis":
+                report=process_plan(body);result=plan_insights(report,body)
+                self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path=="/api/login":
                 key=self.client_address[0];now=time.monotonic()
                 failures=[t for t in LOGIN_FAILURES.get(key,[]) if now-t<600]
@@ -464,7 +477,7 @@ class Handler(BaseHTTPRequestHandler):
                 params=parse_qs(parts.query)
                 theme=params.get("theme",["light"])[0]
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
-                page=int(params.get("page",[0])[0]);image=plan_image(report,theme) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1") if report["mode"]=="forecast" and page==0 else production_image(report,page,theme)
+                page=int(params.get("page",[0])[0]);image=plan_image(report,theme,plan_insights(report,body)) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1") if report["mode"]=="forecast" and page==0 else production_image(report,page,theme)
             except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
             remember_generated(body)

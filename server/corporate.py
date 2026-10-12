@@ -52,8 +52,10 @@ def brand(draw, width, stamp, title, palette):
     label(draw,(x,35),caption,22,p["ink"],bold=True,width=width-x-42)
 
 
-def plan_image(plan,theme="light"):
-    p=DARK if theme=="dark" else LIGHT
+def _plan_table_image(plan,theme="light"):
+    p=dict(DARK if theme=="dark" else LIGHT)
+    p["green"]="#493628" if theme=="dark" else "#fff0df"
+    p["yellow"]="#263b32" if theme=="dark" else "#e3f5ea"
     if plan.get("sourceTable"):return png(source_image(plan,p))
     al=[r for r in plan["rows"] if r["material"]=="AL"]
     cu=[r for r in plan["rows"] if r["material"]=="CU"]
@@ -75,9 +77,9 @@ def plan_image(plan,theme="light"):
     d.rectangle((30,104,1644,156),fill=p["head"])
     for index,head in enumerate(HEADERS):
         left,right=X[index+1],X[index+2]
-        parts=head.split("\n")
+        parts=[line for part in head.split("\n") for line in wrapped(measure,part,10,right-left-8)]
         for n,part in enumerate(parts):
-            label(d,((left+right)/2,131+(n-(len(parts)-1)/2)*16),part,11,p["ink"],bold=True,anchor="mm",width=right-left-5)
+            label(d,((left+right)/2,131+(n-(len(parts)-1)/2)*14),part,10,p["ink"],bold=True,anchor="mm")
     y=156
     positions={"AL":al,"CU":cu}
     layout_iter=iter(lines)
@@ -136,6 +138,63 @@ def plan_image(plan,theme="light"):
             if cu_end>cu_start:d.line((x,cu_start,x,cu_end),fill=p["line"])
         else:d.line((x,104,x,y),fill=p["line"])
     d.line((30,156,1644,156),fill=p["line"])
+    return png(image)
+
+
+def plan_image(plan,theme="light",insights=None):
+    from io import BytesIO
+    from server.plan_analysis import build
+    from server.source_render import MAX_PIXELS,SourceRenderError
+    p=DARK if theme=="dark" else LIGHT
+    table=Image.open(BytesIO(_plan_table_image(plan,theme)))
+    if insights is None:
+        # Direct render callers can still receive current totals without a DB comparison.
+        raw={"rows":[{k:str(v) for k,v in row.items()} for row in plan['rows']]}
+        insights=build(plan,raw)
+    offset=790;width=table.width
+    if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și diagramele depășesc dimensiunea maximă a imaginii.")
+    image=Image.new("RGB",(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image)
+    left=(width-1672)//2
+    def txt(x,y,t,size=16,color=None,bold=False,w=None):label(d,(left+x,y),t,size,color or p['ink'],bold=bold,width=w)
+    def value(v,unit):return amount(v,2)+' '+unit if v is not None else 'Necompletat'
+    txt(30,106,"PLAN DE PRODUCȚIE · SINTEZĂ ȘI EVOLUȚIE",20,bold=True)
+    orange='#ef9b50' if theme=='dark' else '#b76517'
+    colors=[p['accent'],p['success'],orange];fills=[p['blue'],p['green'],p['stripe']]
+    cards=[('METAL PLANIFICAT',insights['planned'],'t'),('METAL PREDAT',insights['handed'],'t'),('REALIZARE ÎN TONE',insights['percent'],'%')]
+    for i,(title,v,unit) in enumerate(cards):
+        x=30+i*546;d.rounded_rectangle((left+x,148,left+x+520,259),radius=12,fill=fills[i],outline=p['line']);txt(x+20,168,title,14,p['muted'],True);txt(x+20,205,value(v,unit),30,colors[i],True,480)
+    if insights['percent'] is not None:
+        d.rounded_rectangle((left+1142,247,left+1622,254),radius=3,fill=p['head'])
+        progress=480*max(0,min(1,float(insights['percent'])/100))
+        if progress:d.rounded_rectangle((left+1142,247,left+1142+max(4,progress),254),radius=3,fill=p['success'])
+    a,c=insights['groups']['AL'],insights['groups']['CU']
+    txt(30,279,f"AL planificat / predat: {value(a['planned'] if insights['planned'] is not None else None,'t')} / {value(a['handed'] if insights['handed'] is not None else None,'t')}",16,p['accent'],True)
+    txt(850,279,f"CU planificat / predat: {value(c['planned'] if insights['planned'] is not None else None,'t')} / {value(c['handed'] if insights['handed'] is not None else None,'t')}",16,orange,True)
+    txt(30,305,f"Stoc sârmă: {value(insights['ton_stocks']['wire'],'t')}  ·  Stoc lită: {value(insights['ton_stocks']['spool'],'t')}",13,p['muted'])
+    txt(30,322,"SITUAȚIA PE FLUX · TOATE POZIȚIILE · KM",18,bold=True)
+    txt(30,351,"Stocuri pe etape și marfă predată; cantitățile nu se adună într-un procent din tone.",13,p['muted'])
+    stages=insights['stages'];maximum=max([float(r['current']) for r in stages if r['current'] is not None]+[1])
+    stage_colors=[p['accent'],'#43a9ac','#7a8fe7','#b084cd','#ef9b50',p['success'],'#4c9bb9']
+    for i,row in enumerate(stages):
+        y=391+i*50;txt(30,y,row['label'],16);txt(700,y,value(row['current'],'km'),16,bold=True,w=140)
+        d.rounded_rectangle((left+240,y+3,left+670,y+19),radius=6,fill=p['head'])
+        if row['current']:
+            bar=430*float(row['current'])/maximum;d.rounded_rectangle((left+240,y+3,left+240+max(6,bar),y+19),radius=6,fill=stage_colors[i])
+    comparison=insights['comparison'];txt(876,322,"EVOLUȚIE · POZIȚII COMUNE",18,bold=True)
+    if comparison:
+        txt(876,351,f"Față de {comparison['date']} · {comparison['common']} poziții comparabile",13,p['muted'])
+        txt(876,375,f"Noi: {comparison['new']} · absente: {comparison['missing']} · ambigue: {comparison['ambiguous']}",13,p['muted'])
+        txt(876,412,"INDICATOR",12,p['muted'],True);txt(1130,412,"ANTERIOR",12,p['muted'],True);txt(1305,412,"ACUM",12,p['muted'],True);txt(1470,412,"DIFERENȚĂ",12,p['muted'],True)
+        for i,row in enumerate(comparison['metrics']):
+            y=445+i*32
+            if i%2:d.rectangle((left+866,y-6,left+1642,y+32),fill=p['stripe'])
+            txt(876,y,row['label'],14,w=235);txt(1130,y,value(row['previous'],row['unit']) if row['previous'] is not None else '—',14,w=160);txt(1305,y,value(row['current'],row['unit']) if row['current'] is not None else '—',14,w=155)
+            delta=row['delta'];txt(1470,y,('+' if delta is not None and delta>0 else '')+value(delta,row['unit']) if delta is not None else '—',14,p['accent'],True,165)
+    else:
+        for j,line in enumerate(['Comparația apare după ce există un plan','salvat sau generat la o dată anterioară.','Produsele noi nu intră în evoluția comparată.']):txt(876,399+j*28,line,16,p['muted'])
+    txt(30,796,"Comparație după material, client și produs. Pozițiile duplicate sau lipsă nu sunt tratate automat ca finalizate.",14,p['muted'])
+    txt(30,826,"Diferențele de stoc nu reprezintă predări. Celulele lipsă nu intră în comparații numerice.",14,p['muted'])
+    if plan.get("sourceTable"):txt(30,852,"Sinteza folosește coloanele asociate; tabelul importat păstrează totalurile originale din sursă.",13,p["muted"])
     return png(image)
 
 

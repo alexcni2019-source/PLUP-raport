@@ -51,6 +51,9 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  for ri,(row,height) in enumerate(zip(rows,heights)):
   first=' '.join(row[:3]).strip().upper();total=first.startswith(('TOTAL','INTRARI','INTRĂRI'))
   fill=p['head'] if ri==header else p['yellow'] if total else p['stripe'] if ri%2 else p['paper']
+  if report['mode']=='plan' and total:
+   if first.startswith('TOTAL AL') and not first.startswith(('TOTAL AL +','TOTAL AL+')):fill=p['blue']
+   elif first.startswith('TOTAL CU'):fill=p['green']
   d.rectangle((30,y,image_width-30,y+height),fill=fill)
   nonempty=[(i,row[c]) for i,c in enumerate(columns) if c<len(row) and row[c]]
   # Title rows in Excel are commonly merged. Preserve the title across empty cells.
@@ -61,6 +64,9 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
    x=30
    for ci,w in zip(columns,widths):
     value=row[ci] if ci<len(row) else '';f=head_font if ri==header else body_font
+    if report['mode']=='plan' and ri!=header and ci==table['columns'].get('material',0):
+     token=str(value).strip().upper().rstrip(':')
+     if token in ('AL','CU'):d.rectangle((x,y,x+w,y+height),fill=p['blue'] if token=='AL' else p['green'])
     for n,line in enumerate(lines(value)):
      numeric=bool(re.fullmatch(r'[-+]?\d+(?:[.,]\d+)?(?:\s*(?:t|km|%))?',line.strip(),re.I))
      left=x+w-12-d.textlength(line,font=f) if numeric and ri!=header else x+12
