@@ -8,6 +8,20 @@
  const fields={plan:['material','client','product','planned','handed','wire','spool','bar','vane','cable','mi','armored','mf','goods','notes'],forecast:['material','product','km','tons','client','measure','status','notes'],report:['al','cu','backlogAl','backlogCu','wasteAl','wasteCu','op_asumreal','op_status','op_plan','op_previz','op_backal','op_backcu','op_rigid1','op_rigid2','op_rigid3','op_multi1','op_multi2','op_niehoff','op_beta3','op_stocal','op_stoccu','obs']};
  const numeric=new Set(['km','tons','planned','handed','wire','spool','bar','vane','cable','mi','armored','mf','goods','al','cu','backlogAl','backlogCu','wasteAl','wasteCu']);
  const convert=(v,k)=>{let s=String(v??'').trim();if(s==='—'||s==='-')return '';if(numeric.has(k))s=s.replace(/\s/g,'').replace(/(?:tone|tona|km|t)$/i,'');return s;};
+ const kmColumns=t=>{
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const locate=names=>{const matches=t.rows[t.header].map((v,i)=>names.includes(norm(v))?i:-1).filter(i=>i>=0);return matches.length===1?matches[0]:null};
+  return [locate(['km porniti','km pornit','kilometri porniti']),locate(['km predati','km predat','kilometri predati'])];
+ };
+ const near=(row,pair)=>{
+  if(pair.some(i=>i===null))return false;
+  const parse=v=>{const s=String(v??'').toLowerCase().replace(/\s/g,'').replace(/km$/,'');return /^\d+(?:[.,]\d+)?$/.test(s)?s.replace(',','.'):null};
+  const a=parse(row[pair[0]]),b=parse(row[pair[1]]);if(a===null||b===null)return false;const parts=[a.split('.'),b.split('.')],precision=Math.max(1,...parts.map(p=>(p[1]||'').length)),scaled=parts.map(p=>BigInt(p[0]+(p[1]||'').padEnd(precision,'0'))),diff=scaled[0]-scaled[1];return scaled[0]>0n&&(diff<0n?-diff:diff)<=2n*10n**BigInt(precision-1);
+ };
+ function colorKm(mode){
+  const t=tables.get(mode),panel=$('source-editor-'+suffix(mode));if(!t||!panel||mode!=='plan')return;const pair=kmColumns(t);
+  panel.querySelectorAll('textarea[data-source-row]').forEach(n=>{const ri=Number(n.dataset.sourceRow),ci=Number(n.dataset.sourceCol),row=t.rows[ri],total=/^(total|intr[aă]ri)/i.test(row.slice(0,3).join(' ').trim());const green=ri>t.header&&!total&&pair.includes(ci)&&near(row,pair);n.closest('td').classList.toggle('km-complete',green);if(green)n.title='Diferență de cel mult 0,2 km între porniți și predați';else n.removeAttribute('title');});
+ }
  const day=(stamp,n)=>{const d=new Date(stamp+'T12:00:00');d.setDate(d.getDate()+n);return d.toLocaleDateString('sv-SE');};
  function attach(base){
   const source=tables.get(base.mode);if(!source)return base;
@@ -43,10 +57,11 @@
   panel.hidden=!table;if(!table)return;
   const cols=Math.max(...table.rows.map(r=>r.length)),page=Math.min(pages.get(mode)||0,Math.floor((table.rows.length-1)/25));pages.set(mode,page);const start=page*25,headers=table.rows[table.header];
   panel.innerHTML=`<div class="smart-heading"><h3>Tabelul tău · toate coloanele</h3><span>${table.rows.length} rânduri · ${cols} coloane</span></div><p class="smart-note">Antetele, ordinea, celulele goale și totalurile din Excel se păstrează în PNG și în istoric. Poți edita valorile aici. Totalurile scrise în tabel nu se recalculează automat; verifică-le după editare.</p><div class="smart-scroll source-grid"><table><tbody>${table.rows.slice(start,start+25).map((row,offset)=>{const ri=start+offset;return `<tr class="${ri===table.header?'source-header':''}"><th scope="row">${ri+1}</th>${Array.from({length:cols},(_,ci)=>ri===table.header?`<th scope="col">${esc(row[ci]||'')}</th>`:`<td><textarea rows="1" wrap="off" maxlength="1000" ${table.columns.date===ci&&table.records.some(r=>r.row===ri)?'readonly':''} data-source-mode="${mode}" data-source-row="${ri}" data-source-col="${ci}" aria-label="Rând ${ri+1}, ${esc(headers[ci]||'coloana '+(ci+1))}">${esc(row[ci]||'')}</textarea></td>`).join('')}</tr>`;}).join('')}</tbody></table></div><div class="source-toolbar"><span>Rânduri ${start+1}–${Math.min(start+25,table.rows.length)} din ${table.rows.length}</span>${table.rows.length>25?`<button type="button" class="secondary-button" data-source-page="-1" data-source-mode="${mode}" ${page===0?'disabled':''}>Înapoi</button><button type="button" class="secondary-button" data-source-page="1" data-source-mode="${mode}" ${start+25>=table.rows.length?'disabled':''}>Mai multe rânduri</button>`:''}<button type="button" class="text-button" data-source-standard="${mode}">Folosește formularul standard</button></div>`;
+  colorKm(mode);
  }
  function set(data){if(data.sourceTable)tables.set(data.mode,clone(data.sourceTable));else tables.delete(data.mode);pages.set(data.mode,0);queueMicrotask(()=>render(data.mode));}
  function clear(mode){tables.delete(mode);render(mode);}
- document.addEventListener('input',e=>{const n=e.target;if(!n.matches('[data-source-row]'))return;const mode=n.dataset.sourceMode,t=tables.get(mode),r=Number(n.dataset.sourceRow),c=Number(n.dataset.sourceCol);while(t.rows[r].length<=c)t.rows[r].push('');t.rows[r][c]=n.value;window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);});
+ document.addEventListener('input',e=>{const n=e.target;if(!n.matches('[data-source-row]'))return;const mode=n.dataset.sourceMode,t=tables.get(mode),r=Number(n.dataset.sourceRow),c=Number(n.dataset.sourceCol);while(t.rows[r].length<=c)t.rows[r].push('');t.rows[r][c]=n.value;colorKm(mode);window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);});
  document.addEventListener('click',e=>{const n=e.target.closest('button');if(!n)return;if(n.dataset.sourcePage){const mode=n.dataset.sourceMode;pages.set(mode,(pages.get(mode)||0)+Number(n.dataset.sourcePage));render(mode);}if(n.dataset.sourceStandard){const mode=n.dataset.sourceStandard;if(!confirm('Treci la șablonul standard? Coloanele suplimentare și totalurile originale nu vor mai apărea în acest raport. Rapoartele salvate se păstrează.'))return;const c=controller(mode),draft=c.draft(),p=attach(draft.payload);delete p.sourceTable;c.restoreDraft({...draft,payload:p});window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);}});
  document.addEventListener('change',e=>{if(e.target.matches('#report-date,#plan-date,#forecast-date')){const mode=e.target.id==='plan-date'?'plan':e.target.id==='forecast-date'?'forecast':window.PLUPReport.payload().mode;if(tables.has(mode))render(mode);}});
  window.PLUPSource={attach,set,clear,render,has:mode=>tables.has(mode)};

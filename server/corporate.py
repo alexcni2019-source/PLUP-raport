@@ -67,20 +67,20 @@ def _plan_table_image(plan,theme="light"):
         return product,notes,max(31,9+max(len(product),len(notes),1)*15)
     lines=[line_layout(row) for row in al+cu]
     body_height=sum(item[2] for item in lines)
-    end=156+body_height+39+16+36+40+42+42
+    end=184+body_height+39+16+36+40+42+42
     height=max(540,end+40)
     image=Image.new("RGB",(1672,height),p["bg"])
     d=ImageDraw.Draw(image)
     stamp=date.fromisoformat(plan["date"]).strftime("%d.%m.%Y")
     brand(d,1672,stamp,f"PLAN {plan['week'].upper()}",p)
     d.rounded_rectangle((14,87,1658,height-22),radius=14,fill=p["paper"],outline=p["line"],width=1)
-    d.rectangle((30,104,1644,156),fill=p["head"])
+    d.rectangle((30,104,1644,184),fill=p["head"])
     for index,head in enumerate(HEADERS):
         left,right=X[index+1],X[index+2]
-        parts=[line for part in head.split("\n") for line in wrapped(measure,part,10,right-left-8)]
+        parts=[line for part in head.split("\n") for line in wrapped(measure,part,13,right-left-8,True)]
         for n,part in enumerate(parts):
-            label(d,((left+right)/2,131+(n-(len(parts)-1)/2)*14),part,10,p["ink"],bold=True,anchor="mm")
-    y=156
+            label(d,((left+right)/2,144+(n-(len(parts)-1)/2)*18),part,13,p["ink"],bold=True,anchor="mm")
+    y=184
     positions={"AL":al,"CU":cu}
     layout_iter=iter(lines)
 
@@ -137,7 +137,7 @@ def _plan_table_image(plan,theme="light"):
             d.line((x,104,x,al_end),fill=p["line"])
             if cu_end>cu_start:d.line((x,cu_start,x,cu_end),fill=p["line"])
         else:d.line((x,104,x,y),fill=p["line"])
-    d.line((30,156,1644,156),fill=p["line"])
+    d.line((30,184,1644,184),fill=p["line"])
     return png(image)
 
 
@@ -150,6 +150,7 @@ def plan_image(plan,theme="light",insights=None):
     if insights is None:
         # Direct render callers can still receive current totals without a DB comparison.
         raw={"rows":[{k:str(v) for k,v in row.items()} for row in plan['rows']]}
+        if plan.get("sourceTable"):raw["sourceTable"]=plan["sourceTable"]
         insights=build(plan,raw)
     offset=790;width=table.width
     if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și diagramele depășesc dimensiunea maximă a imaginii.")
@@ -392,8 +393,10 @@ def production_image(report,page=0,theme="light"):
     return combined_image(image,report,p,stamp) if report.get("sourceTable") else png(image)
 
 
-def forecast_image(forecast,theme="light",show_status=True):
-    p=DARK if theme=="dark" else LIGHT
+def _forecast_table_image(forecast,theme="light",show_status=True):
+    p=dict(DARK if theme=="dark" else LIGHT)
+    p["green"]="#493628" if theme=="dark" else "#fff0df"
+    p["yellow"]="#263b32" if theme=="dark" else "#e3f5ea"
     if forecast.get("sourceTable"):return png(source_image(forecast,p,show_status))
     columns=(30,75,450,568,686,879,1089,1236,1644) if show_status else (30,75,490,620,750,970,1190,1644)
     keys=["product","km","tons","client","measure"]+(["status"] if show_status else [])+["notes"]
@@ -411,18 +414,18 @@ def forecast_image(forecast,theme="light",show_status=True):
         return wraps,max(38,12+18*max((len(q) for q in wraps.values()),default=1))
     layouts=[layout(row) for row in al+cu]
     body=sum(height for _,height in layouts)
-    table_end=153+body+43+14+(39 if not cu else 0)+43+47
+    table_end=173+body+43+14+(39 if not cu else 0)+43+47
     height=max(470,table_end+38)
     image=Image.new("RGB",(1672,height),p["bg"])
     d=ImageDraw.Draw(image)
     stamp=date.fromisoformat(forecast["date"]).strftime("%d.%m.%Y")
     brand(d,1672,stamp,"PREVIZ ZILNIC",p)
     d.rounded_rectangle((14,87,1658,height-22),radius=14,fill=p["paper"],outline=p["line"])
-    d.rectangle((30,103,1644,153),fill=p["head"])
+    d.rectangle((30,103,1644,173),fill=p["head"])
     for i,key in enumerate(keys):
         left,right=columns[i+1],columns[i+2]
-        label(d,((left+right)/2,128),headers[key],14,p["ink"],bold=True,anchor="mm",width=right-left-8)
-    y=153;layout_iter=iter(layouts)
+        label(d,((left+right)/2,138),headers[key],18,p["ink"],bold=True,anchor="mm",width=right-left-8)
+    y=173;layout_iter=iter(layouts)
 
     def rows(material,items):
         nonlocal y
@@ -437,7 +440,7 @@ def forecast_image(forecast,theme="light",show_status=True):
                 if key=="status":
                     status=cell_text(row[key])
                     if status:
-                        is_done="PREDAT" in status.upper()
+                        is_done=status.upper().split()[0]=="PREDAT"
                         d.rounded_rectangle((left+8,y+5,right-8,y+row_height-5),radius=12,
                                             fill=p["success_bg"] if is_done else p["pill"])
                         label(d,((left+right)/2,y+row_height/2),status,12,p["success"] if is_done else p["ink"],bold=True,anchor="mm",width=right-left-23)
@@ -482,4 +485,25 @@ def forecast_image(forecast,theme="light",show_status=True):
             if cu_end>cu_start:d.line((x,cu_start,x,cu_end),fill=p["line"])
         else:d.line((x,103,x,y),fill=p["line"])
     d.line((30,153,1644,153),fill=p["line"])
+    return png(image)
+
+
+def forecast_image(forecast,theme="light",show_status=True):
+    from io import BytesIO
+    from server.source_render import MAX_PIXELS,SourceRenderError
+    p=DARK if theme=="dark" else LIGHT
+    table=Image.open(BytesIO(_forecast_table_image(forecast,theme,show_status)))
+    offset=210;width=table.width
+    if width*(table.height+offset)>MAX_PIXELS:raise SourceRenderError("Tabelul și sinteza depășesc dimensiunea maximă a imaginii.")
+    image=Image.new("RGB",(width,table.height+offset),p['bg']);image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset));d=ImageDraw.Draw(image)
+    left=(width-1672)//2
+    label(d,(left+30,103),"PREVIZ ZILNIC · SINTEZĂ",19,p['ink'],bold=True)
+    for i,(material,title,color,fill) in enumerate([('AL','ALUMINIU',p['accent'],p['blue']),('CU','CUPRU','#ef9b50' if theme=='dark' else '#b76517','#493628' if theme=='dark' else '#fff0df'),('TOTAL','TOTAL PREVIZ',p['success'],p['green'])]):
+        x=left+30+i*546;d.rounded_rectangle((x,140,x+520,262),radius=12,fill=fill,outline=p['line'])
+        totals=forecast['totals'][material] if material!='TOTAL' else {k:sum(forecast['totals'][m][k] for m in ('AL','CU')) for k in ('km','tons')}
+        known=lambda k:not forecast.get('sourceTable') or k in forecast['sourceTable']['columns']
+        label(d,(x+20,157),title,14,p['muted'],bold=True)
+        label(d,(x+20,188),amount(totals['tons'],2)+' t' if known('tons') else 'Tone neasociate',28,color,bold=True,width=480)
+        label(d,(x+20,229),amount(totals['km'],2)+' km' if known('km') else 'KM neasociați',16,p['ink'])
+    label(d,(left+30,276),"Cantități previzionate; kilometrii și tonele sunt afișate separat.",13,p['muted'])
     return png(image)
