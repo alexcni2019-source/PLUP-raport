@@ -147,7 +147,66 @@ OPS_LABELS=["Asumat / Realizat (t) + %","Realizat vs status","Realizat vs plan",
             "Stoc aluminiu","Stoc cupru"]
 
 
+def weekend_image(report,theme="light"):
+    p=DARK if theme=="dark" else LIGHT
+    days=report["days"];total=report["total"]
+    stamp=date.fromisoformat(days[0]["date"]).strftime("%d.%m.%Y")+" – "+date.fromisoformat(days[-1]["date"]).strftime("%d.%m.%Y")
+    extras=days[-1]["extras"]
+    measure=ImageDraw.Draw(Image.new("RGB",(1,1)));indicators=[]
+    for name,key in list(zip(OPS_LABELS,OPS))+[("Observații","obs")]:
+        if not extras.get(key):continue
+        left=wrapped(measure,name,16,390);right=wrapped(measure,extras[key],16,890)
+        indicators.append((left,right,max(42,16+24*max(len(left),len(right)))))
+    height=max(1020,920+sum(r[2] for r in indicators))
+    image=Image.new("RGB",(1491,height),p["bg"]);d=ImageDraw.Draw(image)
+    brand(d,1491,stamp,"RAPORT WEEKEND",p)
+    label(d,(42,115),"PRODUCȚIE · VINERI / SÂMBĂTĂ / DUMINICĂ",18,p["muted"],bold=True)
+    label(d,(42,151),stamp,30,p["ink"],bold=True)
+    for x,title,value in [(42,"TOTAL PREDAT AL + CU",total["handed"]),(754,"BACKLOG PREDAT CUMULAT",total["backlog"])]:
+        d.rounded_rectangle((x,212,x+695,334),radius=12,fill=p["blue"],outline=p["line"])
+        label(d,(x+22,231),title,16,p["muted"],bold=True)
+        label(d,(x+22,269),amount(value,2)+" t",34,p["ink"],bold=True)
+    xs=[42,279,474,669,864,1059,1254,1449]
+    headers=["ZI / DATA","PREDAT AL","PREDAT CU","TOTAL PREDAT","BACKLOG AL","BACKLOG CU","TOTAL BACKLOG"]
+    d.rectangle((42,359,1449,407),fill=p["head"])
+    for i,h in enumerate(headers):label(d,(xs[i]+12,375),h,13,p["muted"],bold=True)
+    for i,day in enumerate(days):
+        y=407+i*63;v=day["values"]
+        d.rectangle((42,y,1449,y+63),fill=p["paper"] if i%2==0 else p["stripe"])
+        label(d,(54,y+12),["Vineri","Sâmbătă","Duminică"][i],16,p["ink"],bold=True)
+        label(d,(54,y+35),date.fromisoformat(day["date"]).strftime("%d.%m.%Y"),13,p["muted"])
+        values=[v["al"],v["cu"],day["handed"],v["backlogAl"],v["backlogCu"],day["backlog"]]
+        for j,value in enumerate(values,1):label(d,(xs[j]+12,y+21),amount(value,2)+" t",17,p["ink"],bold=j in (3,6),width=170)
+    y=596;d.rectangle((42,y,1449,y+50),fill=p["blue"]);label(d,(54,y+16),"TOTAL WEEKEND",16,p["ink"],bold=True)
+    values=[sum(day["values"][key] for day in days) for key in ("al","cu")]+[total["handed"]]+[sum(day["values"][key] for day in days) for key in ("backlogAl","backlogCu")]+[total["backlog"]]
+    for j,value in enumerate(values,1):label(d,(xs[j]+12,y+16),amount(value,2)+" t",17,p["ink"],bold=True,width=170)
+    label(d,(42,675),"PREDARE ȘI BACKLOG PE ZI",16,p["ink"],bold=True)
+    maximum=max([float(day[k]) for day in days for k in ("handed","backlog")]+[1])
+    for i,day in enumerate(days):
+        x=42+i*480;label(d,(x,711),["Vineri","Sâmbătă","Duminică"][i],15,p["muted"])
+        for offset,key,title,color in [(0,"handed","Predat",p["accent"]),(29,"backlog","Backlog",p["success"])]:
+            y=739+offset;label(d,(x,y),title,12,p["muted"])
+            d.rounded_rectangle((x+68,y,x+306,y+14),radius=5,fill=p["head"])
+            width=238*float(day[key])/maximum
+            if width:d.rounded_rectangle((x+68,y,x+68+max(5,width),y+14),radius=5,fill=color)
+            label(d,(x+320,y-2),amount(day[key],2)+" t",14,p["ink"],bold=True,width=140)
+    y=817
+    label(d,(42,y),"INDICATORI OPERAȚIONALI · DUMINICĂ",17,p["ink"],bold=True)
+    y+=37
+    if not indicators:label(d,(42,y),"Nu au fost completați indicatori pentru duminică.",15,p["muted"])
+    for i,(left,right,h) in enumerate(indicators):
+        d.rectangle((42,y,1449,y+h),fill=p["paper"] if i%2==0 else p["stripe"])
+        for j,line in enumerate(left):label(d,(54,y+9+24*j),line,16,p["ink"])
+        for j,line in enumerate(right):label(d,(550,y+9+24*j),line,16,p["ink"])
+        y+=h
+    label(d,(42,height-34),"NRG Cables · PLUP Department",13,p["muted"])
+    return png(image)
+
+
 def production_image(report,page=0,theme="light"):
+    if report["mode"]=="weekend":
+        if page != 0:raise ValueError("Raportul de weekend are o singură pagină.")
+        return weekend_image(report,theme)
     days=report["days"]
     if page<0 or page>(len(days) if len(days)>1 else 0):raise ValueError("Pagină invalidă")
     total=len(days)>1 and page==len(days)
