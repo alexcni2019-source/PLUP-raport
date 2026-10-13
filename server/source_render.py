@@ -53,7 +53,9 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
    for c,w in zip(columns,widths):
     value=row[c] if c<len(row) else ''
     layout[c]=([' '.join(str(value).split())] if measure.textlength(' '.join(str(value).split()),font=head_font)<=w-32 else header_lines(value)) if ri==header else [body_line(value)] if str(value)!='' else []
-  layouts.append(layout);heights.append(max(82 if ri==header else 44,18+max(map(len,layout.values()),default=0)*(24 if ri==header else 27)))
+  redundant_title=with_brand and report['mode']=='plan' and ri<header and len(populated)==1 and re.fullmatch(r'\s*\d{1,2}[./]\d{1,2}[./]\d{4}\s*[-–·:]?\s*PLAN\s*(?:W[K]?\s*\d{1,2})?\s*',body_line(populated[0][1]),re.I)
+  blank_prefix=with_brand and report['mode']=='plan' and ri<header and not populated
+  layouts.append(layout);heights.append(0 if redundant_title or blank_prefix else max(82 if ri==header else 44,18+max(map(len,layout.values()),default=0)*(24 if ri==header else 27)))
  image_height=start+sum(heights)+38
  if image_width>14000 or image_width*image_height>MAX_PIXELS:raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
  image=Image.new('RGB',(image_width,image_height),p['bg']);d=ImageDraw.Draw(image)
@@ -64,6 +66,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
 
  y=start
  for ri,(row,height) in enumerate(zip(rows,heights)):
+  if not height:continue
   first=' '.join(row[:3]).strip().upper();total=first.startswith(('TOTAL','INTRARI','INTRĂRI'))
   fill=p['head'] if ri==header else p['yellow'] if total else p['stripe'] if ri%2 else p['paper']
   if report['mode'] in ('plan','forecast') and total:
@@ -86,7 +89,8 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
     if ci in highlights.get(ri,set()):d.rectangle((x,y,x+w,y+height),fill=p['success_bg'])
     cell_lines=layouts[ri].get(ci,[])
     for n,line in enumerate(cell_lines):
-     left=x+(w-d.textlength(line,font=f))/2
+     numeric=bool(re.fullmatch(r'[-+]?\d+(?:[.,]\d+)?(?:\s*(?:t|km|%))?',line.strip(),re.I))
+     left=x+16 if total and ri!=header and not numeric else x+(w-d.textlength(line,font=f))/2
      d.text((left,y+(height-24*len(cell_lines))/2+n*24 if ri==header else y+9+n*27),line,font=f,fill=p['success'] if ci in highlights.get(ri,set()) else p['ink'])
     d.line((x,y,x,y+height),fill=p['line']);x+=w
    d.line((x,y,x,y+height),fill=p['line'])
