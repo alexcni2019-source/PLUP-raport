@@ -13,5 +13,17 @@ class ReadabilityTests(unittest.TestCase):
    def record(draw,xy,text,*a,**kw):
     f=kw.get('font');seen.append((xy,text,f.size));return original(draw,xy,text,*a,**kw)
    with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,palette)
-   self.assertLessEqual(image.width,2600);self.assertTrue(any(t==row[2] for _,t,size in seen));self.assertTrue(any(t=='CLIENT TEST' and size==20 for _,t,size in seen))
+   self.assertLessEqual(image.width,4000);self.assertTrue(any(t==row[2] for _,t,size in seen));self.assertTrue(any(t=='CLIENT TEST' and size==20 for _,t,size in seen))
    for (x,y),t,size in seen:self.assertGreaterEqual(x,0);self.assertLess(x,image.width);self.assertLess(y+size,image.height)
+ def test_total_labels_and_observations_single_line_and_headers_centered(self):
+  header=['CLIENT','PRODUS','METAL PLANIFICAT (TONE)','OBSERVATII']
+  body=['CLIENT TEST','PRODUS COMPLET','1.25','OBSERVATIE COMPLETA PE UN SINGUR RAND']
+  total='TOTAL GENERAL FARA PREDARI (TONE)'
+  report={'mode':'plan','week':'W42','date':'2026-10-13','sourceTable':{'rows':[header,body,[total,'','1.25','']],'header':0,'columns':{'client':0,'product':1}}}
+  seen=[];original=ImageDraw.ImageDraw.text
+  def record(draw,xy,text,*a,**kw):seen.append((xy,text,kw['font']));return original(draw,xy,text,*a,**kw)
+  with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,LIGHT)
+  self.assertGreaterEqual(image.width,2400)
+  for value in [*body,total]:self.assertTrue(any(text==value and f.size==20 for xy,text,f in seen))
+  ys={xy[1] for xy,text,f in seen if f.size==18};self.assertLessEqual(len(ys),2)
+  for xy,text,f in seen:self.assertLessEqual(xy[0]+f.getlength(text),image.width)

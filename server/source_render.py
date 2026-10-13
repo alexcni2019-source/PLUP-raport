@@ -3,7 +3,7 @@ from datetime import date
 from io import BytesIO
 import re
 from PIL import Image, ImageDraw
-from server.render import font, png, wrapped
+from server.render import font, png
 from server.km_completion import highlighted
 
 MAX_PIXELS=40_000_000
@@ -21,42 +21,38 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
    if name.strip().casefold() in ('stadiu','status'):hidden.add(i)
  columns=[i for i in range(width) if i not in hidden]
  if not columns:raise SourceRenderError('Nu există coloane de afișat.')
- measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(20);head_font=font(16,True)
+ measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(20);head_font=font(18,True)
  highlights=highlighted(table) if report['mode']=='plan' else {}
  def header_lines(value):
   words=str(value).split()
   if len(words)<2:return [' '.join(words)] if words else []
   choices=[[' '.join(words[:i]),' '.join(words[i:])] for i in range(1,len(words))]
   return min(choices,key=lambda parts:max(measure.textlength(t,font=head_font) for t in parts))
- def raw_lines(value):return str(value).replace('\r\n','\n').replace('\r','\n').split('\n')
+ def body_line(value):return ' '.join(str(value).replace('\r','\n').splitlines())
  widths=[]
- # Body values determine column width; long headings wrap rather than widening the image.
+ # Every body cell stays on one line, including total labels and observations.
  for col in columns:
-  values=[str(row[col]) for ri,row in enumerate(rows) if ri>header and col<len(row) and row[col]]
+  values=[body_line(row[col]) for ri,row in enumerate(rows) if ri>header and col<len(row) and row[col]]
   key=next((k for k,v in table['columns'].items() if v==col),None)
-  longest=max((measure.textlength(line,font=body_font) for v in values for line in raw_lines(v)),default=0)
-  cap=280 if key in ('product','notes','measure') else 170 if key=='client' else 120
-  minimum=230 if key=='product' else 125 if key=='client' else 50 if key=='material' else 86
   heading=str(rows[header][col]) if col<len(rows[header]) else ''
   header_width=max((measure.textlength(t,font=head_font) for t in header_lines(heading)),default=0)
-  is_product=key=='product' or str(heading).strip().casefold() in ('produs','produse','product')
-  body_width=max((measure.textlength(' '.join(v.splitlines()),font=body_font) for v in values),default=0) if is_product else min(cap-24,longest)
-  widths.append(max(minimum,int(header_width)+25,int(body_width)+25))
+  body_width=max((measure.textlength(v,font=body_font) for v in values),default=0)
+  minimum=300 if key=='product' else 150 if key=='client' else 66 if key=='material' else 110
+  widths.append(max(minimum,int(header_width)+33,int(body_width)+33))
  content=sum(widths)
- if content<1612:
-  extra=1612-content;widths=[v+extra//len(widths)+(1 if i<extra%len(widths) else 0) for i,v in enumerate(widths)]
+ if content<2340:
+  extra=2340-content;widths=[v+extra//len(widths)+(1 if i<extra%len(widths) else 0) for i,v in enumerate(widths)]
  image_width=sum(widths)+60;start=102 if with_brand else 16
  layouts=[];heights=[]
  for ri,row in enumerate(rows):
   populated=[(i,row[c]) for i,c in enumerate(columns) if c<len(row) and row[c]]
   if ri<header and len(populated)==1:
-   i,value=populated[0];layout={columns[i]:wrapped(measure,value,20,sum(widths[i:])-24)}
+   i,value=populated[0];layout={columns[i]:[body_line(value)]}
   else:
    layout={}
    for c,w in zip(columns,widths):
     value=row[c] if c<len(row) else ''
-    is_product=c==table['columns'].get('product') or str(rows[header][c] if c<len(rows[header]) else '').strip().casefold() in ('produs','produse','product')
-    layout[c]=([' '.join(str(value).split())] if measure.textlength(' '.join(str(value).split()),font=head_font)<=w-24 else header_lines(value)) if ri==header else [' '.join(str(value).splitlines())] if value and is_product else wrapped(measure,value,20,w-24) if str(value)!='' else []
+    layout[c]=([' '.join(str(value).split())] if measure.textlength(' '.join(str(value).split()),font=head_font)<=w-32 else header_lines(value)) if ri==header else [body_line(value)] if str(value)!='' else []
   layouts.append(layout);heights.append(max(82 if ri==header else 44,18+max(map(len,layout.values()),default=0)*(24 if ri==header else 27)))
  image_height=start+sum(heights)+38
  if image_width>14000 or image_width*image_height>MAX_PIXELS:raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
@@ -77,7 +73,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   nonempty=[(i,row[c]) for i,c in enumerate(columns) if c<len(row) and row[c]]
   # Title rows in Excel are commonly merged. Preserve the title across empty cells.
   if ri<header and len(nonempty)==1:
-   i,value=nonempty[0];x=30+sum(widths[:i])+12
+   i,value=nonempty[0];x=30+sum(widths[:i])+(sum(widths[i:])-d.textlength(body_line(value),font=body_font))/2
    for n,line in enumerate(layouts[ri].get(columns[i],[])):d.text((x,y+9+n*27),line,font=body_font,fill=p['ink'])
   else:
    x=30
@@ -90,8 +86,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
     if ci in highlights.get(ri,set()):d.rectangle((x,y,x+w,y+height),fill=p['success_bg'])
     cell_lines=layouts[ri].get(ci,[])
     for n,line in enumerate(cell_lines):
-     numeric=bool(re.fullmatch(r'[-+]?\d+(?:[.,]\d+)?(?:\s*(?:t|km|%))?',line.strip(),re.I))
-     left=x+w-12-d.textlength(line,font=f) if numeric and ri!=header else x+12
+     left=x+(w-d.textlength(line,font=f))/2
      d.text((left,y+(height-24*len(cell_lines))/2+n*24 if ri==header else y+9+n*27),line,font=f,fill=p['success'] if ci in highlights.get(ri,set()) else p['ink'])
     d.line((x,y,x,y+height),fill=p['line']);x+=w
    d.line((x,y,x,y+height),fill=p['line'])
