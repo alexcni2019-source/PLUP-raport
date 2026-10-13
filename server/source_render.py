@@ -21,7 +21,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
    if name.strip().casefold() in ('stadiu','status'):hidden.add(i)
  columns=[i for i in range(width) if i not in hidden]
  if not columns:raise SourceRenderError('Nu există coloane de afișat.')
- measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(20);head_font=font(18,True)
+ measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(24);head_font=font(20,True)
  highlights=highlighted(table) if report['mode']=='plan' else {}
  def header_lines(value):
   words=str(value).split()
@@ -55,7 +55,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
     layout[c]=([' '.join(str(value).split())] if measure.textlength(' '.join(str(value).split()),font=head_font)<=w-32 else header_lines(value)) if ri==header else [body_line(value)] if str(value)!='' else []
   redundant_title=with_brand and report['mode']=='plan' and ri<header and len(populated)==1 and re.fullmatch(r'\s*\d{1,2}[./]\d{1,2}[./]\d{4}\s*[-–·:]?\s*PLAN\s*(?:W[K]?\s*\d{1,2})?\s*',body_line(populated[0][1]),re.I)
   blank_prefix=with_brand and report['mode']=='plan' and ri<header and not populated
-  layouts.append(layout);heights.append(0 if redundant_title or blank_prefix else max(82 if ri==header else 44,18+max(map(len,layout.values()),default=0)*(24 if ri==header else 27)))
+  layouts.append(layout);heights.append(0 if redundant_title or blank_prefix else max(96 if ri==header else 60,24+max(map(len,layout.values()),default=0)*(28 if ri==header else 32)))
  image_height=start+sum(heights)+38
  if image_width>14000 or image_width*image_height>MAX_PIXELS:raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
  image=Image.new('RGB',(image_width,image_height),p['bg']);d=ImageDraw.Draw(image)
@@ -77,7 +77,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   # Title rows in Excel are commonly merged. Preserve the title across empty cells.
   if ri<header and len(nonempty)==1:
    i,value=nonempty[0];x=30+sum(widths[:i])+(sum(widths[i:])-d.textlength(body_line(value),font=body_font))/2
-   for n,line in enumerate(layouts[ri].get(columns[i],[])):d.text((x,y+9+n*27),line,font=body_font,fill=p['ink'])
+   for n,line in enumerate(layouts[ri].get(columns[i],[])):d.text((x,y+(height-32)/2+n*32),line,font=body_font,fill=p['ink'])
   else:
    x=30
    for ci,w in zip(columns,widths):
@@ -91,7 +91,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
     for n,line in enumerate(cell_lines):
      numeric=bool(re.fullmatch(r'[-+]?\d+(?:[.,]\d+)?(?:\s*(?:t|km|%))?',line.strip(),re.I))
      left=x+16 if total and ri!=header and not numeric else x+(w-d.textlength(line,font=f))/2
-     d.text((left,y+(height-24*len(cell_lines))/2+n*24 if ri==header else y+9+n*27),line,font=f,fill=p['success'] if ci in highlights.get(ri,set()) else p['ink'])
+     d.text((left,y+(height-28*len(cell_lines))/2+n*28 if ri==header else y+(height-32)/2+n*32),line,font=f,fill=p['success'] if ci in highlights.get(ri,set()) else p['ink'])
     d.line((x,y,x,y+height),fill=p['line']);x+=w
    d.line((x,y,x,y+height),fill=p['line'])
   d.line((30,y+height,image_width-30,y+height),fill=p['line']);y+=height
