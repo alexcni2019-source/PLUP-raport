@@ -154,20 +154,21 @@ def plan_image(plan,theme="light",insights=None,section="all"):
         if plan.get('sourceTable'):raw['sourceTable']=plan['sourceTable']
         insights=build(plan,raw)
     stages=[r for r in insights['stages'] if r['current'] is not None]
-    comparison=insights['comparison'];metrics=[r for r in comparison['metrics'] if r['current'] is not None and r['previous'] is not None] if comparison else []
+    from server import plan_visuals
+    clients=insights.get('clients',[])
     cards=[(title,insights[key],unit) for title,key,unit in [('METAL PLANIFICAT','planned','t'),('METAL PREDAT','handed','t'),('REALIZARE ÎN TONE','percent','%')] if insights[key] is not None]
     group_lines=[]
     for m in ('AL','CU'):
         parts=[title+': '+amount(insights['groups'][m][key],2)+' t' for key,title in [('planned','planificat'),('handed','predat')] if insights['group_present'][m][key] and insights[key] is not None]
         if parts:group_lines.append((m,m+' · '+' / '.join(parts)))
     stock_parts=[title+': '+amount(insights['ton_stocks'][key],2)+' t' for key,title in [('wire','Sârmă'),('spool','Lită')] if insights['ton_stocks'][key] is not None]
-    if not cards and not stages and not metrics and not stock_parts and table is not None:return png(table)
+    if not cards and not stages and not clients and not stock_parts and table is not None:return png(table)
     y=140
     if cards:y=280
     if group_lines:y+=30
     if stock_parts:y+=27
     chart_top=y+15
-    end=max(chart_top+45+len(stages)*48 if stages else chart_top,chart_top+95+len(metrics)*34 if metrics else chart_top)
+    end=chart_top+plan_visuals.height(insights,ImageDraw.Draw(Image.new('RGB',(1,1))))
     offset=end-87+20;width=table.width if table is not None else 1672
     height=table.height+offset if table is not None else end+30
     if width*height>MAX_PIXELS:raise SourceRenderError('Tabelul și diagramele depășesc dimensiunea maximă a imaginii.')
@@ -186,21 +187,7 @@ def plan_image(plan,theme="light",insights=None,section="all"):
     for i,(m,line) in enumerate(group_lines):txt(30+i*820,yy,line,16,p['accent'] if m=='AL' else orange,True)
     if group_lines:yy+=30
     if stock_parts:txt(30,yy,' · '.join(stock_parts),15,p['muted'])
-    if stages:
-        txt(30,chart_top,'SITUAȚIA PE FLUX · KM',18,bold=True);maximum=max([float(r['current']) for r in stages]+[1]);color_map=dict(zip(['bar','vane','cable','mi','armored','mf','goods'],[p['accent'],'#43a9ac','#7a8fe7','#b084cd',orange,p['success'],'#4c9bb9']))
-        for i,row in enumerate(stages):
-            y=chart_top+45+i*48;bar_end=670 if metrics else 1450;txt(30,y,row['label'],16);txt(bar_end+30,y,amount(row['current'],2)+' km',16,bold=True,w=145)
-            d.rounded_rectangle((left+240,y+3,left+bar_end,y+19),radius=6,fill=p['head'])
-            if row['current']:
-                bar=(bar_end-240)*float(row['current'])/maximum;d.rounded_rectangle((left+240,y+3,left+240+max(6,bar),y+19),radius=6,fill=color_map[row['key']])
-    if metrics:
-        x=876 if stages else 30;txt(x,chart_top,'EVOLUȚIE',18,bold=True);txt(x,chart_top+30,date.fromisoformat(comparison['date']).strftime('%d.%m.%Y')+' → '+date.fromisoformat(plan['date']).strftime('%d.%m.%Y'),14,p['muted'])
-        columns=[0,254,429,594] if stages else [0,590,1000,1350]
-        for dx,title in zip(columns,['INDICATOR','ANTERIOR','ACUM','DIFERENȚĂ']):txt(x+dx,chart_top+60,title,12,p['muted'],True)
-        for i,row in enumerate(metrics):
-            y=chart_top+91+i*34
-            if i%2:d.rectangle((left+x-10,y-6,left+x+(766 if stages else 1612),y+28),fill=p['stripe'])
-            txt(x,y,row['label'],14,w=235);txt(x+columns[1],y,amount(row['previous'],2)+' '+row['unit'],14,w=160);txt(x+columns[2],y,amount(row['current'],2)+' '+row['unit'],14,w=155);txt(x+columns[3],y,('+' if row['delta']>0 else '')+amount(row['delta'],2)+' '+row['unit'],14,p['accent'],True,165)
+    plan_visuals.draw(d,left,chart_top,insights,p,theme)
     return png(image)
 
 OPS_LABELS=["Asumat / Realizat (t) + %","Realizat vs status","Realizat vs plan","Previzionat schimbul 1",
