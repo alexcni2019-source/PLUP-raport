@@ -140,7 +140,7 @@ def process_plan(data: object) -> dict:
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return source_table.attach({"mode":"plan","date":start.isoformat(),"week":data["week"].strip(),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
+    return source_table.attach({"mode":"plan","date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:

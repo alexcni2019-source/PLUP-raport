@@ -69,6 +69,7 @@
    delete payload.sourceTable;
   }
   if(keep)payload.sourceTable={version:1,header:st.header,rows:sheet.rows.map(r=>r.map(v=>String(v??''))),columns:Object.fromEntries(Object.entries(mapping).filter(([,i])=>i>=0)),records,date:reportDate};
+  if(suffix==='plan')payload.week=window.PLUPSource.weekFor({rows:sheet.rows,header:st.header},existing.week);
   if(!keep){const unmapped=(sheet.rows[st.header]||[]).filter((h,i)=>h&&!used.includes(i));if(unmapped.length&&!confirm('Șablonul standard nu include: '+unmapped.join(', ')+'. Continui fără aceste coloane?'))return;}
   if(!confirm('Aplici tabelul și înlocuiești datele curente? Rapoartele salvate în istoric se păstrează.'))return;
   try{localStorage.setItem(profileKey(suffix,sheet.rows[st.header]||[]),JSON.stringify(mapping));}catch{}

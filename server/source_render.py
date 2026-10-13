@@ -23,6 +23,11 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  if not columns:raise SourceRenderError('Nu există coloane de afișat.')
  measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(20);head_font=font(16,True)
  highlights=highlighted(table) if report['mode']=='plan' else {}
+ def header_lines(value):
+  words=str(value).split()
+  if len(words)<2:return [' '.join(words)] if words else []
+  choices=[[' '.join(words[:i]),' '.join(words[i:])] for i in range(1,len(words))]
+  return min(choices,key=lambda parts:max(measure.textlength(t,font=head_font) for t in parts))
  def raw_lines(value):return str(value).replace('\r\n','\n').replace('\r','\n').split('\n')
  widths=[]
  # Body values determine column width; long headings wrap rather than widening the image.
@@ -33,8 +38,10 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   cap=280 if key in ('product','notes','measure') else 170 if key=='client' else 120
   minimum=230 if key=='product' else 125 if key=='client' else 50 if key=='material' else 86
   heading=str(rows[header][col]) if col<len(rows[header]) else ''
-  word_width=max((measure.textlength(word,font=head_font) for word in heading.split()),default=0)
-  widths.append(max(minimum,min(160,int(word_width)+24),min(cap,int(longest)+24)))
+  header_width=max((measure.textlength(t,font=head_font) for t in header_lines(heading)),default=0)
+  is_product=key=='product' or str(heading).strip().casefold() in ('produs','produse','product')
+  body_width=max((measure.textlength(' '.join(v.splitlines()),font=body_font) for v in values),default=0) if is_product else min(cap-24,longest)
+  widths.append(max(minimum,int(header_width)+25,int(body_width)+25))
  content=sum(widths)
  if content<1612:
   extra=1612-content;widths=[v+extra//len(widths)+(1 if i<extra%len(widths) else 0) for i,v in enumerate(widths)]
@@ -45,13 +52,18 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   if ri<header and len(populated)==1:
    i,value=populated[0];layout={columns[i]:wrapped(measure,value,20,sum(widths[i:])-24)}
   else:
-   layout={c:(wrapped(measure,row[c],16 if ri==header else 20,w-24,ri==header) if c<len(row) and str(row[c])!='' else []) for c,w in zip(columns,widths)}
+   layout={}
+   for c,w in zip(columns,widths):
+    value=row[c] if c<len(row) else ''
+    is_product=c==table['columns'].get('product') or str(rows[header][c] if c<len(rows[header]) else '').strip().casefold() in ('produs','produse','product')
+    layout[c]=([' '.join(str(value).split())] if measure.textlength(' '.join(str(value).split()),font=head_font)<=w-24 else header_lines(value)) if ri==header else [' '.join(str(value).splitlines())] if value and is_product else wrapped(measure,value,20,w-24) if str(value)!='' else []
   layouts.append(layout);heights.append(max(82 if ri==header else 44,18+max(map(len,layout.values()),default=0)*(24 if ri==header else 27)))
  image_height=start+sum(heights)+38
  if image_width>14000 or image_width*image_height>MAX_PIXELS:raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
  image=Image.new('RGB',(image_width,image_height),p['bg']);d=ImageDraw.Draw(image)
  if with_brand:
   title={'plan':'PLAN','forecast':'PREVIZ','weekday':'RAPORT','weekend':'RAPORT 3 ZILE'}[report['mode']]
+  if report['mode']=='plan' and report.get('week'):title+=' '+report['week'].upper()
   brand(d,image_width,stamp or date.fromisoformat(report['date']).strftime('%d.%m.%Y'),title,p)
 
  y=start

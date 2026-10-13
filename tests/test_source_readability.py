@@ -13,5 +13,5 @@ class ReadabilityTests(unittest.TestCase):
    def record(draw,xy,text,*a,**kw):
     f=kw.get('font');seen.append((xy,text,f.size));return original(draw,xy,text,*a,**kw)
    with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,palette)
-   self.assertLessEqual(image.width,1850);self.assertTrue(any(t=='CLIENT TEST' and size==20 for _,t,size in seen))
+   self.assertLessEqual(image.width,2600);self.assertTrue(any(t==row[2] for _,t,size in seen));self.assertTrue(any(t=='CLIENT TEST' and size==20 for _,t,size in seen))
    for (x,y),t,size in seen:self.assertGreaterEqual(x,0);self.assertLess(x,image.width);self.assertLess(y+size,image.height)

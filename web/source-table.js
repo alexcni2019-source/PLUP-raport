@@ -23,9 +23,15 @@
   panel.querySelectorAll('textarea[data-source-row]').forEach(n=>{const ri=Number(n.dataset.sourceRow),ci=Number(n.dataset.sourceCol),row=t.rows[ri],total=/^(total|intr[aă]ri)/i.test(row.slice(0,3).join(' ').trim());const green=ri>t.header&&!total&&pair.includes(ci)&&near(row,pair);n.closest('td').classList.toggle('km-complete',green);if(green)n.title='Diferență de cel mult 0,2 km între porniți și predați';else n.removeAttribute('title');});
  }
  const day=(stamp,n)=>{const d=new Date(stamp+'T12:00:00');d.setDate(d.getDate()+n);return d.toLocaleDateString('sv-SE');};
+ function weekFor(table,fallback=''){
+  const weeks=new Set();for(const row of table.rows.slice(0,table.header))for(const cell of row)for(const match of String(cell).matchAll(/(?:^|[^\w])(?:wk|w|s[aă]pt[aă]m[aâ]na)\s*[-.:]?\s*(\d{1,2})(?!\d)/gi))weeks.add(Number(match[1]));
+  if(weeks.size>1||[...weeks].some(w=>w<1||w>53))throw Error('Săptămâna din titlul tabelului este ambiguă sau invalidă.');
+  return weeks.size?'W'+[...weeks][0]:fallback;
+ }
  function attach(base){
   const source=tables.get(base.mode);if(!source)return base;
   const table=clone(source),cols=table.columns,type=suffix(base.mode);
+  if(base.mode==='plan')base.week=weekFor(table,base.week);
   if(type==='report'){
    base.values={};
    for(const rec of table.records){const row=table.rows[rec.row],stamp=day(base.date,rec.day);base.values[stamp]=Object.fromEntries(fields.report.map(k=>[k,Number.isInteger(cols[k])?convert(row[cols[k]],k):'']));
@@ -64,5 +70,5 @@
  document.addEventListener('input',e=>{const n=e.target;if(!n.matches('[data-source-row]'))return;const mode=n.dataset.sourceMode,t=tables.get(mode),r=Number(n.dataset.sourceRow),c=Number(n.dataset.sourceCol);while(t.rows[r].length<=c)t.rows[r].push('');t.rows[r][c]=n.value;colorKm(mode);window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);});
  document.addEventListener('click',e=>{const n=e.target.closest('button');if(!n)return;if(n.dataset.sourcePage){const mode=n.dataset.sourceMode;pages.set(mode,(pages.get(mode)||0)+Number(n.dataset.sourcePage));render(mode);}if(n.dataset.sourceStandard){const mode=n.dataset.sourceStandard;if(!confirm('Treci la șablonul standard? Coloanele suplimentare și totalurile originale nu vor mai apărea în acest raport. Rapoartele salvate se păstrează.'))return;const c=controller(mode),draft=c.draft(),p=attach(draft.payload);delete p.sourceTable;c.restoreDraft({...draft,payload:p});window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);}});
  document.addEventListener('change',e=>{if(e.target.matches('#report-date,#plan-date,#forecast-date')){const mode=e.target.id==='plan-date'?'plan':e.target.id==='forecast-date'?'forecast':window.PLUPReport.payload().mode;if(tables.has(mode))render(mode);}});
- window.PLUPSource={attach,set,clear,render,addForecastWork(){const mode='forecast',t=tables.get(mode);if(!t)return;const additions=[['order','Ordine de execuție'],['priority','Prioritate'],['drumLength','Metri pe tambur']].filter(([k])=>!Number.isInteger(t.columns[k]));const width=Math.max(...t.rows.map(r=>r.length));if(width+additions.length>40)throw Error('Tabelul depășește 40 de coloane.');for(const [i,[key,label]] of additions.entries()){const col=width+i;t.columns[key]=col;while(t.rows[t.header].length<=col)t.rows[t.header].push('');t.rows[t.header][col]=label;for(const [j,rec] of t.records.entries()){while(t.rows[rec.row].length<=col)t.rows[rec.row].push('');t.rows[rec.row][col]=key==='order'?String(j+1):key==='priority'?'normal':'';}}render(mode);window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);},has:mode=>tables.has(mode)};
+ window.PLUPSource={weekFor,attach,set,clear,render,addForecastWork(){const mode='forecast',t=tables.get(mode);if(!t)return;const additions=[['order','Ordine de execuție'],['priority','Prioritate'],['drumLength','Metri pe tambur']].filter(([k])=>!Number.isInteger(t.columns[k]));const width=Math.max(...t.rows.map(r=>r.length));if(width+additions.length>40)throw Error('Tabelul depășește 40 de coloane.');for(const [i,[key,label]] of additions.entries()){const col=width+i;t.columns[key]=col;while(t.rows[t.header].length<=col)t.rows[t.header].push('');t.rows[t.header][col]=label;for(const [j,rec] of t.records.entries()){while(t.rows[rec.row].length<=col)t.rows[rec.row].push('');t.rows[rec.row][col]=key==='order'?String(j+1):key==='priority'?'normal':'';}}render(mode);window.PLUPUI.markDirty(mode);window.PLUPSmart?.changed(mode);},has:mode=>tables.has(mode)};
 })();

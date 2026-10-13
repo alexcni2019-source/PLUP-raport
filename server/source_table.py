@@ -1,5 +1,6 @@
 """Lossless, bounded source tables retained with a report's JSON payload."""
 import json
+import re
 from datetime import date
 
 FIELDS = {
@@ -43,3 +44,10 @@ def split(payload):
 def attach(report,table):
  if table is not None:report['sourceTable']=table
  return report
+
+
+def plan_week(table,fallback=""):
+ if table is None:return fallback
+ weeks={int(m.group(1)) for row in table['rows'][:table['header']] for cell in row for m in re.finditer(r"(?<![\w])(?:wk|w|s[aă]pt[aă]m[aâ]na)\s*[-.:]?\s*(\d{1,2})(?!\d)",str(cell),re.I)}
+ if len(weeks)>1 or any(not 1<=w<=53 for w in weeks):raise ValueError('Săptămâna din titlul tabelului este ambiguă sau invalidă.')
+ return 'W'+str(next(iter(weeks))) if weeks else fallback
