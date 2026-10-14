@@ -16,11 +16,11 @@
  const near=(row,pair)=>{
   if(pair.some(i=>i===null))return false;
   const parse=v=>{const s=String(v??'').toLowerCase().replace(/\s/g,'').replace(/km$/,'');return /^\d+(?:[.,]\d+)?$/.test(s)?s.replace(',','.'):null};
-  const a=parse(row[pair[0]]),b=parse(row[pair[1]]);if(a===null||b===null)return false;const parts=[a.split('.'),b.split('.')],precision=Math.max(1,...parts.map(p=>(p[1]||'').length)),scaled=parts.map(p=>BigInt(p[0]+(p[1]||'').padEnd(precision,'0'))),diff=scaled[0]-scaled[1];return scaled[0]>0n&&(diff<0n?-diff:diff)<=2n*10n**BigInt(precision-1);
+  const a=parse(row[pair[0]]),b=parse(row[pair[1]]);if(a===null||b===null)return false;const parts=[a.split('.'),b.split('.')],precision=Math.max(1,...parts.map(p=>(p[1]||'').length)),scaled=parts.map(p=>BigInt(p[0]+(p[1]||'').padEnd(precision,'0'))),diff=scaled[0]-scaled[1];return scaled[0]>0n&&diff<=2n*10n**BigInt(precision-1);
  };
  function colorKm(mode){
   const t=tables.get(mode),panel=$('source-editor-'+suffix(mode));if(!t||!panel||mode!=='plan')return;const pair=kmColumns(t);
-  panel.querySelectorAll('textarea[data-source-row]').forEach(n=>{const ri=Number(n.dataset.sourceRow),ci=Number(n.dataset.sourceCol),row=t.rows[ri],total=/^(total|intr[aă]ri)/i.test(row.slice(0,3).join(' ').trim());const green=ri>t.header&&!total&&pair.includes(ci)&&near(row,pair);n.closest('td').classList.toggle('km-complete',green);if(green)n.title='Diferență de cel mult 0,2 km între porniți și predați';else n.removeAttribute('title');});
+  panel.querySelectorAll('textarea[data-source-row]').forEach(n=>{const ri=Number(n.dataset.sourceRow),ci=Number(n.dataset.sourceCol),row=t.rows[ri],total=/^(total|intr[aă]ri)/i.test(row.slice(0,3).join(' ').trim());const green=ri>t.header&&!total&&pair.includes(ci)&&near(row,pair);n.closest('td').classList.toggle('km-complete',green);if(green)n.title='Predat integral, cu surplus sau cu rest de cel mult 0,2 km';else n.removeAttribute('title');});
  }
  const day=(stamp,n)=>{const d=new Date(stamp+'T12:00:00');d.setDate(d.getDate()+n);return d.toLocaleDateString('sv-SE');};
  function weekFor(table,fallback=''){
