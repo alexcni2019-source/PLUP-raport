@@ -27,6 +27,8 @@ def build(plan,payload,previous=None,previous_payload=None):
  result={'date':plan['date'],'groups':groups,'planned':planned if entered(payload,'planned') else None,'handed':handed if entered(payload,'handed') else None,'percent':handed/planned*100 if planned and entered(payload,'handed') else None,'stages':[{'key':k,'label':label,'current':sum((r[k] for r in rows),ZERO) if entered(payload,k) else None} for k,label in STAGES],'group_present':{m:{k:any(r.get('material')==m and r.get(k) is not None and str(r.get(k,'')).strip() not in ('','-','—') for r in payload['rows']) for k in ('planned','handed')} for m in ('AL','CU')},'comparison':None,'ton_stocks':{k:sum((r[k] for r in rows),ZERO) if entered(payload,k) else None for k in ('wire','spool')}}
  from server.plan_clients import build as client_build
  result['clients']=client_build(plan,payload)
+ from server.client_flow import build as flow_build
+ result['client_flow']=flow_build(plan,payload)
  if previous is None:return result
  old=previous['rows'];nc=Counter(identity(r) for r in rows);oc=Counter(identity(r) for r in old)
  current={identity(r):r for r in rows if r['product'].strip() and nc[identity(r)]==1};prior={identity(r):r for r in old if r['product'].strip() and oc[identity(r)]==1}
