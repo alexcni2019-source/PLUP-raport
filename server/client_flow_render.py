@@ -11,7 +11,7 @@ def image(plan,insights,theme):
  measure=ImageDraw.Draw(Image.new('RGB',(1,1)))
  for offset in range(0,len(groups),2):
   pair=groups[offset:offset+2]
-  heights.append(max(150+len(g['stages'])*62+len(wrapped(measure,g['client'],30,1000))*38 for g in pair))
+  heights.append(max(150+len(g['stages'])*62+len(wrapped(measure,g['client'],30,1000))*38+sum(64+len(product['stages'])*42 for product in g.get('products',[])) for g in pair))
  height=200+sum(h+28 for h in heights)
  if width*height>MAX_PIXELS:raise SourceRenderError('Prea mulți clienți pentru o singură imagine. Împarte planul înainte de export.')
  im=Image.new('RGB',(width,max(height,350)),p['bg']);d=ImageDraw.Draw(im)
@@ -34,5 +34,16 @@ def image(plan,insights,theme):
     value=amount(r['value'],3)+' '+r['unit']
     if r['tons'] is not None:value+=' · '+amount(r['tons'],3)+' t'
     d.text((x+card_width-28-d.textlength(value,font=font(23,True)),ry),value,font=font(23,True),fill=p['ink'])
+   detail_top=top+len(g['stages'])*62+28
+   for product in g.get('products',[]):
+    name=product['product']+' · '+product['material'];size=22
+    while size>14 and d.textlength(name,font=font(size,True))>1084:size-=1
+    d.text((x+28,detail_top),name,font=font(size,True),fill=p['ink']);detail_top+=40
+    for r in product['stages']:
+     value=amount(r['value'],3)+' '+r['unit']
+     if r['tons'] is not None:value+=' · '+amount(r['tons'],3)+' t'
+     d.text((x+40,detail_top),r['label'],font=font(20),fill=p['muted'])
+     d.text((x+card_width-28-d.textlength(value,font=font(20)),detail_top),value,font=font(20),fill=p['ink']);detail_top+=42
+    detail_top+=24
   y+=h+28
  return png(im)

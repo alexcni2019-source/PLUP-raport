@@ -372,6 +372,18 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError,TypeError):self.error(400,"Solicitare invalidă.");return
             finally:conn.close()
             self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
+        if pathname=="/api/admin/export":
+            if not self.authorize():return
+            from server import data_admin
+            kind=parse_qs(urlsplit(self.path).query).get('format',['json'])[0]
+            conn=database()
+            try:
+                if kind=='json':content=json.dumps(data_admin.snapshot(conn),ensure_ascii=False).encode();mime='application/json';ext='json'
+                elif kind=='sqlite':content=data_admin.sqlite_bytes(conn);mime='application/octet-stream';ext='sqlite3'
+                elif kind=='csv':content=data_admin.csv_bytes(conn);mime='application/zip';ext='zip'
+                else:self.error(400,'Format invalid.');return
+            finally:conn.close()
+            self.respond(200,content,mime,{'Content-Disposition':'attachment; filename="PLUP_backup_'+date.today().isoformat()+'.'+ext+'"','Cache-Control':'no-store'});return
         if pathname=="/api/reports":
             if not self.authorize():return
             try:
@@ -420,7 +432,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authorize(mutation=True):return
             identity.logout(self.headers)
             self.respond(200,b'{}','application/json',{'Set-Cookie':'__Host-plup_identity=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'});return
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -429,11 +441,21 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        limit=8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table") else MAX_BYTES
+        limit=50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table") else MAX_BYTES
         if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
+            if path in ('/api/admin/preview','/api/admin/import'):
+                from server import data_admin
+                try:
+                    backup=data_admin.validate(body.get('backup'),validate_report)
+                    conn=database()
+                    try:
+                        result=data_admin.preview(conn,backup) if path.endswith('preview') else data_admin.restore(conn,backup,body.get('action'),body.get('expected'),DB_PATH)
+                    finally:conn.close()
+                except (ValueError,TypeError,KeyError,sqlite3.Error) as exc:self.error(400,str(exc));return
+                self.respond(200,json.dumps(result,ensure_ascii=False).encode(),'application/json');return
             if path=="/api/smart/table":
                 result=table_import.read(body)
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
