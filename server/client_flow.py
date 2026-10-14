@@ -2,6 +2,7 @@
 from decimal import Decimal
 from server.km_completion import columns,number
 from server.plan_analysis import STAGES
+from server.product_sections import metal_per_km
 
 def build(plan,payload):
  source=plan.get('sourceTable') or payload.get('sourceTable');groups={}
@@ -12,8 +13,6 @@ def build(plan,payload):
   if not name:continue
   key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{}})
   raw=payload['rows'][i];cells=source['rows'][records[i]['row']] if i<len(records) else []
-  started=number(cells[pair[0]]) if pair[0] is not None and pair[0]<len(cells) else None
-  ratio=row['planned']/started if started and row['planned']>0 else None
   values=[]
   for field,label in STAGES:
    if field=='goods':continue
@@ -28,6 +27,7 @@ def build(plan,payload):
    item=group['stages'].setdefault(field,{'label':label,'value':Decimal(0),'unit':unit,'tons':Decimal(0),'estimable':True})
    item['value']+=value
    if unit=='km':
+    ratio=metal_per_km(row['product'],row['material'],field)
     if ratio is None and value>0:item['estimable']=False
     elif ratio is not None:item['tons']+=value*ratio
  for group in groups.values():
