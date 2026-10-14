@@ -34,3 +34,10 @@ class ClientFlowTests(unittest.TestCase):
    with patch.object(ImageDraw.ImageDraw,'text',capture):result=plan_image(report,theme,insights,'clients')
    self.assertIn('SBT',seen);self.assertIn('Manta finală',seen);self.assertIn('3 km · 6.26 t',seen);self.assertIn('2 t',seen)
    self.assertEqual(Image.open(BytesIO(result)).width,2400)
+
+ def test_closed_products_removed_from_client_totals_and_details(self):
+  rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':client,'product':'1X240','vane':'2'} for client in ['RW','SBT','SBT']]
+  raw={'mode':'plan','date':'2026-10-14','week':'W42','incoming':'','rows':rows,'sourceTable':{'version':1,'date':'2026-10-14','header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI','STOC VANE'],['1X240','10','11','2'],['1X240','10','9.5','2'],['1X240','10','9.499','2']],'columns':{'product':0,'vane':3},'records':[{'row':i,'material':'AL'} for i in [1,2,3]]}}
+  result=build(app.process_plan(raw),raw)
+  self.assertEqual([g['client'] for g in result],['SBT']);self.assertEqual(len(result[0]['products']),1)
+  self.assertEqual(next(s for s in result[0]['stages'] if s['label']=='Vane')['value'],Decimal('2'))

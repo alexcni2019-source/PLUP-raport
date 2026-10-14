@@ -1,6 +1,6 @@
 """Experimental per-client stage amounts; estimate metal per product."""
 from decimal import Decimal
-from server.km_completion import columns,number
+from server.km_completion import columns,number,highlighted
 from server.plan_analysis import STAGES
 from server.product_sections import metal_per_km
 
@@ -8,7 +8,9 @@ def build(plan,payload):
  source=plan.get('sourceTable') or payload.get('sourceTable');groups={}
  pair=columns(source['rows'][source['header']]) if source else (None,None)
  records=source.get('records',[]) if source else []
+ closed=highlighted(source) if source else {}
  for i,row in enumerate(plan['rows']):
+  if i<len(records) and records[i]['row'] in closed:continue
   name=row['client'].strip()
   if not name:continue
   key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{},'warnings':[],'products':[]})
