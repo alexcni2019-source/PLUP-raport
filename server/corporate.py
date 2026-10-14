@@ -146,13 +146,16 @@ def plan_image(plan,theme="light",insights=None,section="all"):
     from server.plan_analysis import build
     from server.source_render import MAX_PIXELS,SourceRenderError
     p=DARK if theme=="dark" else LIGHT
-    if section not in ("all","summary","table"):raise ValueError("Secțiune invalidă")
+    if section not in ("all","summary","table","clients"):raise ValueError("Secțiune invalidă")
     if section=="table":return _plan_table_image(plan,theme)
     table=Image.open(BytesIO(_plan_table_image(plan,theme))) if section=="all" else None
     if insights is None:
         raw={"rows":[{k:str(v) for k,v in row.items()} for row in plan['rows']]}
         if plan.get('sourceTable'):raw['sourceTable']=plan['sourceTable']
         insights=build(plan,raw)
+    if section=='clients':
+        from server.client_flow_render import image
+        return image(plan,insights,theme)
     stages=[r for r in insights['stages'] if r['current'] is not None]
     from server import plan_visuals
     clients=insights.get('clients',[])

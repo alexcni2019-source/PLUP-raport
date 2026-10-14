@@ -3,7 +3,7 @@
   window.PLUPSplitExport=async ({payload,current,valid,theme,showStatus=true,target})=>{
     const snapshot=JSON.stringify(payload),parts=payload.mode==='forecast'
       ?[['summary','Execuție și diagrame'],['table','Lista de previz']]
-      :[['summary','Analiză și diagrame'],['table','Lista produselor']];
+      :[['summary','Analiză și diagrame'],['table','Lista produselor'],['clients','Flux pe clienți']];
     const blobs=[];
     for(const [section,title] of parts){
       const response=await window.PLUPFetch(`/api/render?theme=${theme}&status=${showStatus?'1':'0'}&section=${section}`,{method:'POST',headers:{'Content-Type':'application/json'},body:snapshot,credentials:'same-origin'});
