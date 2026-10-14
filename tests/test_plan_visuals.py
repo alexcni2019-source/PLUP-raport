@@ -39,3 +39,13 @@ class PlanVisualTests(unittest.TestCase):
   raw=payload([row('SBT',planned='20',handed='5'),row('HELU',planned='10',handed=''),row('SBT',planned='3',handed='1')]);report=app.process_plan(raw);data=plan_analysis.build(report,raw)
   self.assertEqual(sum(r['tons'] for r in data['clients']),data['planned']-data['handed'])
   self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'SBT':Decimal('17'),'HELU':Decimal('10')})
+
+ def test_fune_header_repairs_old_unmapped_history_without_mutation(self):
+  for header in ['STOC FUNIE / BARA (KM)','STOC FUNII (KM)','STOC FUNE / BARĂ (KM)']:
+   raw=payload([row()]);raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS',header],['PRODUS TEST','2,6']],'columns':{'product':0},'records':[{'row':1,'material':'AL'}]}
+   report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+   self.assertEqual(next(s['current'] for s in data['stages'] if s['key']=='bar'),Decimal('2.6'))
+   self.assertNotIn('bar',raw['sourceTable']['columns']);self.assertEqual(raw['rows'][0]['bar'],'')
+ def test_ambiguous_fune_headers_are_not_guessed(self):
+  raw=payload([row()]);raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','STOC FUNIE (KM)','STOC BARA (KM)'],['PRODUS TEST','2','3']],'columns':{'product':0},'records':[{'row':1,'material':'AL'}]}
+  data=plan_analysis.build(app.process_plan(raw),raw);self.assertIsNone(next(s['current'] for s in data['stages'] if s['key']=='bar'))

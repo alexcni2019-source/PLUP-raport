@@ -1,6 +1,7 @@
 """Lossless, bounded source tables retained with a report's JSON payload."""
 import json
 import re
+import unicodedata
 from datetime import date
 
 FIELDS = {
@@ -38,6 +39,7 @@ def validate(table, mode):
 
 def split(payload):
  if not isinstance(payload,dict) or 'sourceTable' not in payload:return payload,None
+ payload=repair_fune(payload)
  table=validate(payload['sourceTable'],payload.get('mode'))
  return {k:v for k,v in payload.items() if k!='sourceTable'},table
 
@@ -51,3 +53,19 @@ def plan_week(table,fallback=""):
  weeks={int(m.group(1)) for row in table['rows'][:table['header']] for cell in row for m in re.finditer(r"(?<![\w])(?:wk|w|s[aă]pt[aă]m[aâ]na)\s*[-.:]?\s*(\d{1,2})(?!\d)",str(cell),re.I)}
  if len(weeks)>1 or any(not 1<=w<=53 for w in weeks):raise ValueError('Săptămâna din titlul tabelului este ambiguă sau invalidă.')
  return 'W'+str(next(iter(weeks))) if weeks else fallback
+
+
+def repair_fune(payload):
+ if not isinstance(payload,dict) or payload.get('mode')!='plan' or 'sourceTable' not in payload:return payload
+ table=validate(payload['sourceTable'],'plan')
+ if 'bar' in table['columns']:return payload
+ normalize=lambda value:re.sub(r'[^a-z0-9]+',' ',unicodedata.normalize('NFKD',value).encode('ascii','ignore').decode().lower()).strip()
+ names={'stoc fune','stoc funie','stoc funii','stoc bara','stoc fune bara','stoc funie bara','stoc funii bara'}
+ candidates=[i for i,name in enumerate(table['rows'][table['header']]) if re.sub(r' km$','',normalize(name)) in names]
+ if len(candidates)!=1 or candidates[0] in table['columns'].values() or len(payload.get('rows',[]))!=len(table['records']):return payload
+ col=candidates[0];rows=[]
+ for row,rec in zip(payload['rows'],table['records']):
+  cell=table['rows'][rec['row']][col] if col<len(table['rows'][rec['row']]) else ''
+  if cell.strip() in ('-','—','–'):cell=''
+  rows.append({**row,'bar':re.sub(r'\s*km\s*$','',cell,flags=re.I).replace(' ','').replace(',','.')})
+ return {**payload,'rows':rows,'sourceTable':{**table,'columns':{**table['columns'],'bar':col}}}

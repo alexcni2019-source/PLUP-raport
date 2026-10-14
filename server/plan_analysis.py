@@ -17,6 +17,8 @@ def entered(payload,key):
  return any(str(r.get(key,'')).strip() not in ('','-','—') for r in payload['rows'])
 
 def build(plan,payload,previous=None,previous_payload=None):
+ from server.source_table import repair_fune
+ payload=repair_fune(payload)
  rows=plan['rows'];groups={}
  for material in ('AL','CU'):
   selected=[r for r in rows if r['material']==material]
