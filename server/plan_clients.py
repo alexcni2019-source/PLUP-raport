@@ -1,4 +1,4 @@
-"""Remaining tonnes per client, from populated planned/handed pairs only."""
+"""Remaining tonnes per client: total planned minus total handed over."""
 from decimal import Decimal
 import colorsys,hashlib,re
 
@@ -16,13 +16,10 @@ def color(name,dark=False):
 
 def build(plan,payload):
  clients={}
- for row,raw in zip(plan['rows'],payload['rows']):
-  if any(raw.get(k) is None or str(raw.get(k,'')).strip() in ('','-','—','–') for k in ('planned','handed')):continue
+ for row in plan['rows']:
   name=re.sub(r'\s+',' ',row['client'].strip())
   if not name:continue
-  remaining=max(Decimal('0'),row['planned']-row['handed'])
-  if not remaining:continue
   key=name.casefold()
   if key not in clients:clients[key]={'client':name,'tons':Decimal('0'),'color':color(name),'darkColor':color(name,True)}
-  clients[key]['tons']+=remaining
- return sorted(clients.values(),key=lambda r:(-r['tons'],r['client'].casefold()))
+  clients[key]['tons']+=row['planned']-row['handed']
+ return sorted((r for r in clients.values() if r['tons']>0),key=lambda r:(-r['tons'],r['client'].casefold()))

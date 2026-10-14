@@ -166,7 +166,6 @@ def plan_image(plan,theme="light",insights=None,section="all"):
     y=140
     if cards:y=280
     if group_lines:y+=30
-    if stock_parts:y+=27
     chart_top=y+15
     end=chart_top+plan_visuals.height(insights,ImageDraw.Draw(Image.new('RGB',(1,1))))
     offset=end-87+20;width=table.width if table is not None else 1672
@@ -186,7 +185,6 @@ def plan_image(plan,theme="light",insights=None,section="all"):
     yy=280 if cards else 140
     for i,(m,line) in enumerate(group_lines):txt(30+i*820,yy,line,16,p['accent'] if m=='AL' else orange,True)
     if group_lines:yy+=30
-    if stock_parts:txt(30,yy,' · '.join(stock_parts),15,p['muted'])
     plan_visuals.draw(d,left,chart_top,insights,p,theme)
     return png(image)
 
