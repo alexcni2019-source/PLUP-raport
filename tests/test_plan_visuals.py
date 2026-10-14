@@ -20,6 +20,6 @@ class PlanVisualTests(unittest.TestCase):
    def record(draw,xy,text,*a,**kw):seen.append(text);return original(draw,xy,text,*a,**kw)
    def record_arc(draw,box,start,end,*a,**kw):arcs.append(end-start);return arc(draw,box,start,end,*a,**kw)
    with patch.object(ImageDraw.ImageDraw,'text',record),patch.object(ImageDraw.ImageDraw,'arc',record_arc):plan_image(report,theme,data,'summary')
-   self.assertIn('RĂMAS DE PREDAT · CLIENȚI',seen);self.assertIn('0.5 km',seen);self.assertIn('2 km',seen);self.assertIn('Marfă predată',seen);self.assertNotIn('EVOLUȚIE',seen);self.assertEqual(arcs,[360])
+   self.assertIn('REST DE PREDAT PLAN LANSAT',seen);self.assertIn('0.5 km',seen);self.assertIn('2 km',seen);self.assertIn('Marfă predată',seen);self.assertNotIn('EVOLUȚIE',seen);self.assertEqual(arcs,[360])
  def test_no_empty_client_section(self):
   raw=payload([row(handed='')]);data=plan_analysis.build(app.process_plan(raw),raw);self.assertEqual(data['clients'],[])

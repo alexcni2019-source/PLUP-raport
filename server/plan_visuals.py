@@ -21,12 +21,12 @@ def draw(draw,left,top,insights,p,theme):
    arc=360*float(r['current'])/maximum
    if arc:draw.arc(box,start=-90,end=-90+arc,fill=COLORS[r['key']],width=14)
    y=top+65+i*58;draw.ellipse((left+430,y+5,left+442,y+17),fill=COLORS[r['key']]);text(455,y,r['label'],17);text(455,y+24,amount(r['current'],2)+' km',21,bold=True)
-  for value,y,size,color in [('FLUX',cy-19,18,p['ink']),('km',cy+8,14,p['muted'])]:
+  for value,y,size,color in [('PRODUSE',cy-24,12 if len(rows)>5 else 16,p['ink']),('(STADII)',cy-5,11 if len(rows)>5 else 14,p['ink']),('km',cy+16,12,p['muted'])]:
    w=draw.textlength(value,font=font(size,True));draw.text((left+cx-w/2,y),value,font=font(size,True),fill=color)
  if handed is not None:
   y=top+430 if rows else top+48;draw.rounded_rectangle((left+30,y,left+796,y+66),radius=10,fill=p['blue']);text(48,y+22,'Marfă predată',18);text(560,y+18,amount(handed,2)+' km',24,p['accent'],True)
  if clients:
-  x=876;text(x,top,'RĂMAS DE PREDAT · CLIENȚI',18,bold=True);maximum=max(float(r['tons']) for r,_,_ in clients);y=top+55
+  x=876;text(x,top,'REST DE PREDAT PLAN LANSAT',18,bold=True);maximum=max(float(r['tons']) for r,_,_ in clients);y=top+55
   for row,lines,h in clients:
    for j,line in enumerate(lines):text(x,y+(h-len(lines)*26)/2+j*26,line,18)
    center=y+h/2;draw.rounded_rectangle((left+x+265,center-7,left+x+615,center+7),radius=5,fill=p['head'])
