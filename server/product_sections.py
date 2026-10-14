@@ -38,7 +38,7 @@ def metal_per_km(product,material,stage):
  if stage in ('bar','vane'):
   terms=conductor_terms(product)
   if len(terms)==1:area=terms[0][1]
-  elif len(terms)==2 and terms[0][0]==3 and terms[1][0]==1:area=terms[0][1]*Decimal('0.75')
+  elif len(terms)==2 and terms[0][0]==3 and terms[1][0]==1:area=terms[0][1]*Decimal('0.90')
   else:return None
  factor=Decimal('2.7')*Decimal('0.93') if material=='AL' else Decimal('8.9')*Decimal('0.93')
  return area*factor/Decimal('1000')
