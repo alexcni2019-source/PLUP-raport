@@ -18,13 +18,13 @@ class PlanAnalysisTests(unittest.TestCase):
   self.assertEqual(result['planned'],30);self.assertEqual(result['handed'],20)
   comparison=result['comparison'];self.assertEqual((comparison['common'],comparison['new'],comparison['missing']),(1,1,1))
   self.assertEqual(comparison['metrics'][0]['delta'],3)
-  bar=next(r for r in comparison['metrics'] if r['label']=='Fune / bară');self.assertEqual(bar['delta'],-5);self.assertEqual(bar['unit'],'km')
+  bar=next(r for r in comparison['metrics'] if r['label']=='Funie / bară');self.assertEqual(bar['delta'],-5);self.assertEqual(bar['unit'],'km')
   now['rows'].append(copy.deepcopy(now['rows'][0]));result=plan_analysis.build(app.process_plan(now),now,app.process_plan(old),old)
   self.assertEqual(result['comparison']['common'],0);self.assertIsNone(result['comparison']['metrics'][0]['delta'])
  def test_missing_cells_do_not_become_numeric_progress(self):
   old=payload('2026-10-09',[row('A','10','2','')]);now=payload('2026-10-12',[row('A','10','5','3')])
   result=plan_analysis.build(app.process_plan(now),now,app.process_plan(old),old)
-  bar=next(r for r in result['comparison']['metrics'] if r['label']=='Fune / bară');self.assertIsNone(bar['delta'])
+  bar=next(r for r in result['comparison']['metrics'] if r['label']=='Funie / bară');self.assertIsNone(bar['delta'])
   self.assertIsNone(next(r for r in result['stages'] if r['key']=='mf')['current'])
  def test_source_only_custom_columns_are_not_invented_metrics(self):
   raw=payload('2026-10-12',[])

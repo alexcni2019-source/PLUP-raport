@@ -52,7 +52,7 @@ class InvalidReport(ValueError):
     pass
 
 
-AMOUNT_LABELS = dict(zip(FIELDS, LABELS)) | dict(zip(PLAN_NUMERIC, ("Metal planificat", "Metal predat", "Sârmă", "Stoc lită", "Stoc fune / bară", "Stoc vane", "Stoc cablat", "Stoc M.I.", "Stoc armat", "Stoc M.F.", "Marfă predată"))) | {"km":"KM", "tons":"Tone"}
+AMOUNT_LABELS = dict(zip(FIELDS, LABELS)) | dict(zip(PLAN_NUMERIC, ("Metal planificat", "Metal predat", "Sârmă", "Stoc lită", "Stoc funie / bară", "Stoc vane", "Stoc cablat", "Stoc M.I.", "Stoc armat", "Stoc M.F.", "Marfă predată"))) | {"km":"KM", "tons":"Tone"}
 
 
 def read_amount(raw: object, context: str = "Valoare") -> Decimal:

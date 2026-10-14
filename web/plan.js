@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const fields=[['client','Client','text'],['product','Produs','text'],['planned','Metal planificat (t)','decimal'],['handed','Metal predat (t)','decimal'],['wire','Sârmă (t)','decimal'],['spool','Stoc lită (t)','decimal'],['bar','Stoc fune / bară (km)','decimal'],['vane','Stoc vane (km)','decimal'],['cable','Stoc cablat (km)','decimal'],['mi','Stoc M.I. (km)','decimal'],['armored','Stoc armat (km)','decimal'],['mf','Stoc M.F. (km)','decimal'],['goods','Marfă predată (km)','decimal'],['notes','Observații','text']];
+  const fields=[['client','Client','text'],['product','Produs','text'],['planned','Metal planificat (t)','decimal'],['handed','Metal predat (t)','decimal'],['wire','Sârmă (t)','decimal'],['spool','Stoc lită (t)','decimal'],['bar','Stoc funie / bară (km)','decimal'],['vane','Stoc vane (km)','decimal'],['cable','Stoc cablat (km)','decimal'],['mi','Stoc M.I. (km)','decimal'],['armored','Stoc armat (km)','decimal'],['mf','Stoc M.F. (km)','decimal'],['goods','Marfă predată (km)','decimal'],['notes','Observații','text']];
   const number=x=>Number(String(x||'0').replace(',','.'))||0;
   const fmt=x=>x.toLocaleString('ro-RO',{minimumFractionDigits:2,maximumFractionDigits:2});
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

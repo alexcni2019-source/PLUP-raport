@@ -3,7 +3,7 @@ from collections import Counter
 from decimal import Decimal
 import json,re
 
-STAGES=[('bar','Fune / bară'),('vane','Vane'),('cable','Cablat'),('mi','Manta intermediară'),('armored','Armat'),('mf','Manta finală'),('goods','Marfă predată')]
+STAGES=[('bar','Funie / bară'),('vane','Vane'),('cable','Cablat'),('mi','Manta intermediară'),('armored','Armat'),('mf','Manta finală'),('goods','Marfă predată')]
 ZERO=Decimal('0')
 
 def identity(row):

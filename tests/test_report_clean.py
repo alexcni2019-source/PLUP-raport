@@ -14,7 +14,7 @@ class CleanReportTests(unittest.TestCase):
   joined=' '.join(seen).casefold()
   for phrase in ['necompletat','poziții comparabile','comparație după','sinteza folosește','nu se adună','comparația apare','stoc lită']:
    self.assertNotIn(phrase,joined)
-  self.assertIn('3 km',seen);self.assertNotIn('Fune / bară',seen);self.assertNotIn('EVOLUȚIE',seen)
+  self.assertIn('3 km',seen);self.assertNotIn('Funie / bară',seen);self.assertNotIn('EVOLUȚIE',seen)
  def test_only_metrics_with_paired_values_are_analyzed(self):
   base={**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'CLIENT TEST','product':'A','planned':'10','handed':'2','bar':'3'}
   old={'mode':'plan','date':'2026-10-09','week':'w42','incoming':'','rows':[base,{**base,'product':'B','handed':''}]}
