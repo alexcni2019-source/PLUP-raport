@@ -19,4 +19,4 @@ class ClientFlowTests(unittest.TestCase):
   raw={'mode':'plan','date':'2026-10-14','week':'W42','incoming':'','rows':rows}
   item=build(app.process_plan(raw),raw)[0]['stages'][0]
   self.assertEqual(item['value'],Decimal('5'));self.assertEqual(item['tons'],Decimal('7.45200'))
-  rows[1]['product']='UNKNOWN';item=build(app.process_plan(raw),raw)[0]['stages'][0];self.assertIsNone(item['tons'])
+  rows[1]['product']='UNKNOWN';group=build(app.process_plan(raw),raw)[0];item=group['stages'][0];self.assertIsNone(item['tons']);self.assertEqual(group['warnings'][0]['product'],'UNKNOWN');self.assertEqual(group['warnings'][0]['row'],2)

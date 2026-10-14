@@ -11,7 +11,7 @@ def build(plan,payload):
  for i,row in enumerate(plan['rows']):
   name=row['client'].strip()
   if not name:continue
-  key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{}})
+  key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{},'warnings':[]})
   raw=payload['rows'][i];cells=source['rows'][records[i]['row']] if i<len(records) else []
   values=[]
   for field,label in STAGES:
@@ -28,7 +28,9 @@ def build(plan,payload):
    item['value']+=value
    if unit=='km':
     ratio=metal_per_km(row['product'],row['material'],field)
-    if ratio is None and value>0:item['estimable']=False
+    if ratio is None and value>0:
+     item['estimable']=False
+     group['warnings'].append({'product':row['product'],'stage':label,'row':i+1,'message':'Nu pot calcula tonele: secțiunea produsului sau configurația pentru această etapă nu este recunoscută.'})
     elif ratio is not None:item['tons']+=value*ratio
  for group in groups.values():
   group['stages']=[{**v,'tons':v['tons'] if v['unit']=='km' and v.pop('estimable') else None} for v in group['stages'].values()]
