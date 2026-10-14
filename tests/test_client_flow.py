@@ -46,3 +46,10 @@ class ClientFlowTests(unittest.TestCase):
   result=build(app.process_plan(raw),raw)
   self.assertEqual([g['client'] for g in result],['SBT']);self.assertEqual(len(result[0]['products']),1)
   self.assertEqual(next(s for s in result[0]['stages'] if s['label']=='Vane')['value'],Decimal('2'))
+
+ def test_started_only_rows_do_not_contribute_to_flow_report(self):
+  rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':c,'product':'1X240','vane':v} for c,v in [('LEMAR',''),('TUB','0'),('TUB','2')]]
+  raw={'mode':'plan','date':'2026-10-14','week':'W42','incoming':'','rows':rows,'sourceTable':{'version':1,'date':'2026-10-14','header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI','STOC VANE'],['1X240','10','0',''],['1X240','5','0','0'],['1X240','4','0','2']],'columns':{'product':0,'vane':3},'records':[{'row':i,'material':'AL'} for i in [1,2,3]]}}
+  result=build(app.process_plan(raw),raw)
+  self.assertEqual([g['client'] for g in result],['TUB']);self.assertEqual(len(result[0]['products']),1)
+  self.assertEqual(next(s for s in result[0]['stages'] if s['label']=='KM porniți')['value'],Decimal('4'))
