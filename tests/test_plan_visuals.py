@@ -49,3 +49,16 @@ class PlanVisualTests(unittest.TestCase):
  def test_ambiguous_fune_headers_are_not_guessed(self):
   raw=payload([row()]);raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','STOC FUNIE (KM)','STOC BARA (KM)'],['PRODUS TEST','2','3']],'columns':{'product':0},'records':[{'row':1,'material':'AL'}]}
   data=plan_analysis.build(app.process_plan(raw),raw);self.assertIsNone(next(s['current'] for s in data['stages'] if s['key']=='bar'))
+
+ def test_green_positions_excluded_without_excluding_other_client_products(self):
+  raw=payload([row('SBT'),row('SBT'),row('HELU')])
+  raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI'],['PRODUS TEST','10','9,8'],['PRODUS TEST','10','9.7999'],['PRODUS TEST','5','5']],'columns':{'product':0},'records':[{'row':1,'material':'AL'},{'row':2,'material':'AL'},{'row':3,'material':'AL'}]}
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+  self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'SBT':Decimal('8')})
+  self.assertEqual(report['totals']['AL']['planned'],Decimal('30'));self.assertEqual(report['totals']['AL']['handed'],Decimal('6'))
+
+ def test_empty_or_zero_started_cells_do_not_exclude_positions(self):
+  raw=payload([row('SBT'),row('SBT')])
+  raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI'],['PRODUS TEST','',''],['PRODUS TEST','0','0']],'columns':{'product':0},'records':[{'row':1,'material':'AL'},{'row':2,'material':'AL'}]}
+  data=plan_analysis.build(app.process_plan(raw),raw)
+  self.assertEqual(data['clients'][0]['tons'],Decimal('16'))
