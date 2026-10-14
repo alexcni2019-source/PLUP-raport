@@ -31,5 +31,5 @@ def metal_per_km(product,material,stage):
  area,count=spec
  allowed={'bar','vane','mf','started','delivered'} if count==1 else {'cable','armored','mi','mf','started','delivered'}
  if stage not in allowed:return None
- factor=Decimal('2.7')*Decimal('0.92') if material=='AL' else Decimal('8.9')*Decimal('0.93')
+ factor=Decimal('2.7')*Decimal('0.93') if material=='AL' else Decimal('8.9')*Decimal('0.93')
  return area*factor/Decimal('1000')

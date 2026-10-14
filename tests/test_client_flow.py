@@ -10,15 +10,15 @@ class ClientFlowTests(unittest.TestCase):
   for name in ['ACSR 70/12','UNKNOWN','NAYY 3X240+','NAYY 3X240/120','3X240 2X95']:
    self.assertIsNone(sections(name))
  def test_material_and_stage_formulas(self):
-  self.assertEqual(metal_per_km('1X240','AL','vane'),Decimal('0.59616'))
-  self.assertEqual(metal_per_km('3X240+120','AL','cable'),Decimal('2.08656'))
+  self.assertEqual(metal_per_km('1X240','AL','vane'),Decimal('0.60264'))
+  self.assertEqual(metal_per_km('3X240+120','AL','cable'),Decimal('2.10924'))
   self.assertEqual(metal_per_km('3X240+120','CU','armored'),Decimal('6.95268'))
   self.assertIsNone(metal_per_km('3X240+120','AL','vane'))
  def test_per_product_aggregation_and_ambiguous_products(self):
   rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':p,'mf':km} for p,km in [('1X240','2'),('3X240+120','3')]]
   raw={'mode':'plan','date':'2026-10-14','week':'W42','incoming':'','rows':rows}
   item=build(app.process_plan(raw),raw)[0]['stages'][0]
-  self.assertEqual(item['value'],Decimal('5'));self.assertEqual(item['tons'],Decimal('7.45200'))
+  self.assertEqual(item['value'],Decimal('5'));self.assertEqual(item['tons'],Decimal('7.53300'))
   rows[1]['product']='UNKNOWN';group=build(app.process_plan(raw),raw)[0];item=group['stages'][0];self.assertIsNone(item['tons']);self.assertEqual(group['warnings'][0]['product'],'UNKNOWN');self.assertEqual(group['warnings'][0]['row'],2)
  def test_third_png_contains_client_process_km_and_tonnes(self):
   from server.corporate import plan_image
@@ -32,7 +32,7 @@ class ClientFlowTests(unittest.TestCase):
    seen=[];original=ImageDraw.ImageDraw.text
    def capture(draw,xy,value,*args,**kwargs):seen.append(value);return original(draw,xy,value,*args,**kwargs)
    with patch.object(ImageDraw.ImageDraw,'text',capture):result=plan_image(report,theme,insights,'clients')
-   self.assertIn('SBT',seen);self.assertIn('Manta finală',seen);self.assertIn('3 km · 6.26 t',seen);self.assertIn('2 t',seen)
+   self.assertIn('SBT',seen);self.assertIn('Manta finală',seen);self.assertIn('3 km · 6.328 t',seen);self.assertIn('2 t',seen)
    self.assertEqual(Image.open(BytesIO(result)).width,2400)
 
  def test_closed_products_removed_from_client_totals_and_details(self):
