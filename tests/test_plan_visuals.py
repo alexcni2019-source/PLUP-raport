@@ -52,7 +52,7 @@ class PlanVisualTests(unittest.TestCase):
 
  def test_green_positions_excluded_without_excluding_other_client_products(self):
   raw=payload([row('SBT'),row('SBT'),row('HELU')])
-  raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI'],['PRODUS TEST','10','9,8'],['PRODUS TEST','10','9.7999'],['PRODUS TEST','5','8']],'columns':{'product':0},'records':[{'row':1,'material':'AL'},{'row':2,'material':'AL'},{'row':3,'material':'AL'}]}
+  raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI'],['PRODUS TEST','10','9,5'],['PRODUS TEST','10','9.4999'],['PRODUS TEST','5','8']],'columns':{'product':0},'records':[{'row':1,'material':'AL'},{'row':2,'material':'AL'},{'row':3,'material':'AL'}]}
   report=app.process_plan(raw);data=plan_analysis.build(report,raw)
   self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'SBT':Decimal('8')})
   self.assertEqual(report['totals']['AL']['planned'],Decimal('30'));self.assertEqual(report['totals']['AL']['handed'],Decimal('6'))

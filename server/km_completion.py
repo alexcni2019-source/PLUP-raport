@@ -21,7 +21,7 @@ def number(value):
 
 def close(started,handed):
  a,b=number(started),number(handed)
- return a is not None and b is not None and a>0 and a-b<=Decimal('0.2')
+ return a is not None and b is not None and a>0 and a-b<=Decimal('0.5')
 
 def highlighted(table):
  a,b=columns(table['rows'][table['header']]);result={}
