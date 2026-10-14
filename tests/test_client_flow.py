@@ -13,7 +13,10 @@ class ClientFlowTests(unittest.TestCase):
   self.assertEqual(metal_per_km('1X240','AL','vane'),Decimal('0.60264'))
   self.assertEqual(metal_per_km('3X240+120','AL','cable'),Decimal('2.10924'))
   self.assertEqual(metal_per_km('3X240+120','CU','armored'),Decimal('6.95268'))
-  self.assertIsNone(metal_per_km('3X240+120','AL','vane'))
+  self.assertEqual(metal_per_km('3X240+120','AL','vane'),Decimal('2.10924'))
+  self.assertEqual(metal_per_km('3X240+95','AL','bar'),Decimal('2.10924'))
+  self.assertEqual(metal_per_km('3X240+95','AL','mf'),Decimal('2.046465'))
+  self.assertEqual(metal_per_km('3X240','AL','vane'),Decimal('0.60264'))
  def test_per_product_aggregation_and_ambiguous_products(self):
   rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':p,'mf':km} for p,km in [('1X240','2'),('3X240+120','3')]]
   raw={'mode':'plan','date':'2026-10-14','week':'W42','incoming':'','rows':rows}

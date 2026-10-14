@@ -8,7 +8,7 @@ START=re.compile(rf'(?<![A-Z\d.,])(\d+)\s*[X×*]\s*({NUM})',re.I)
 EXPR=re.compile(rf'{TERM}(?:\s*\+\s*{TERM})*',re.I)
 PART=re.compile(TERM,re.I)
 
-def sections(product):
+def conductor_terms(product):
  text=str(product).upper();starts=list(START.finditer(text))
  if not starts:return None
  start=starts[0].start();match=EXPR.match(text,start)
@@ -16,20 +16,29 @@ def sections(product):
  end=match.end();tail=text[end:].lstrip()
  # Slash alternatives or an unfinished addition cannot be safely interpreted.
  if tail.startswith(('+','/','X','×','*')) or any(m.start()>=end for m in starts):return None
- total=Decimal(0);count=0
+ terms=[]
  for part in re.split(r'\s*\+\s*',match.group()):
   term=PART.fullmatch(part.strip())
   if not term:return None
   n=int(term.group(1) or '1');area=Decimal(term.group(2).replace(',','.'))
   if not 1<=n<=100 or not 0<area<=2500:return None
-  count+=n;total+=n*area
- return total,count
+  terms.append((n,area))
+ return terms
+
+def sections(product):
+ terms=conductor_terms(product)
+ return (sum((n*area for n,area in terms),Decimal(0)),sum(n for n,area in terms)) if terms else None
 
 def metal_per_km(product,material,stage):
  spec=sections(product)
  if spec is None or material not in ('AL','CU'):return None
  area,count=spec
- allowed={'bar','vane','mf','started','delivered'} if count==1 else {'cable','armored','mi','mf','started','delivered'}
+ allowed={'bar','vane','mf','started','delivered'} if count==1 else {'bar','vane','cable','armored','mi','mf','started','delivered'}
  if stage not in allowed:return None
+ if stage in ('bar','vane'):
+  terms=conductor_terms(product)
+  if len(terms)==1:area=terms[0][1]
+  elif len(terms)==2 and terms[0][0]==3 and terms[1][0]==1:area=3*terms[0][1]+terms[0][1]/2
+  else:return None
  factor=Decimal('2.7')*Decimal('0.93') if material=='AL' else Decimal('8.9')*Decimal('0.93')
  return area*factor/Decimal('1000')
