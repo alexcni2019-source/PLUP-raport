@@ -51,5 +51,11 @@ class ClientFlowTests(unittest.TestCase):
   rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':c,'product':'1X240','vane':v} for c,v in [('LEMAR',''),('TUB','0'),('TUB','2')]]
   raw={'mode':'plan','date':'2026-10-14','week':'W42','incoming':'','rows':rows,'sourceTable':{'version':1,'date':'2026-10-14','header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI','STOC VANE'],['1X240','10','0',''],['1X240','5','0','0'],['1X240','4','0','2']],'columns':{'product':0,'vane':3},'records':[{'row':i,'material':'AL'} for i in [1,2,3]]}}
   result=build(app.process_plan(raw),raw)
-  self.assertEqual([g['client'] for g in result],['TUB']);self.assertEqual(len(result[0]['products']),1)
-  self.assertEqual(next(s for s in result[0]['stages'] if s['label']=='KM porniți')['value'],Decimal('4'))
+  self.assertEqual([g['client'] for g in result],['LEMAR','TUB']);self.assertEqual(len(result[0]['allocated']),1);self.assertEqual(result[0]['stages'],[])
+  self.assertEqual(len(result[1]['products']),1);self.assertEqual(len(result[1]['allocated']),1)
+  self.assertEqual(next(s for s in result[1]['stages'] if s['label']=='KM porniți')['value'],Decimal('4'))
+
+ def test_flow_landscape_pagination_preserves_every_detail(self):
+  from server.client_flow_render import pages
+  g={'client':'SBT','products':[{'product':'1X240','material':'AL','stages':[{'label':'Vane','value':Decimal(1),'unit':'km','tons':Decimal(1)}]*35}],'allocated':[]}
+  result=pages({'client_flow':[g]});self.assertEqual([len(rows) for group,rows in result],[16,16,3])

@@ -509,8 +509,8 @@ class Handler(BaseHTTPRequestHandler):
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
                 page=int(params.get("page",[0])[0]);section=params.get("section",["summary"])[0]
                 if report["mode"] in ("plan","forecast"):
-                    if page!=0 or section not in (("summary","table","clients") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
-                    image=plan_image(report,theme,plan_insights(report,body) if section in ("summary","clients") else None,section) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
+                    if (page!=0 and section!="clients") or section not in (("summary","table","clients") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
+                    image=plan_image(report,theme,plan_insights(report,body) if section in ("summary","clients") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
                 else:image=production_image(report,page,theme)
             except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return

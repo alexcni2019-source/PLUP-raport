@@ -141,7 +141,7 @@ def _plan_table_image(plan,theme="light"):
     return png(image)
 
 
-def plan_image(plan,theme="light",insights=None,section="all"):
+def plan_image(plan,theme="light",insights=None,section="all",page=0):
     from io import BytesIO
     from server.plan_analysis import build
     from server.source_render import MAX_PIXELS,SourceRenderError
@@ -155,7 +155,7 @@ def plan_image(plan,theme="light",insights=None,section="all"):
         insights=build(plan,raw)
     if section=='clients':
         from server.client_flow_render import image
-        return image(plan,insights,theme)
+        return image(plan,insights,theme,page)
     stages=[r for r in insights['stages'] if r['current'] is not None]
     from server import plan_visuals
     clients=insights.get('clients',[])

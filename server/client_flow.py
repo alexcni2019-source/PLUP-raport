@@ -23,8 +23,11 @@ def build(plan,payload):
   for field,label,col in [('started','KM porniți',pair[0]),('delivered','KM predați',pair[1])]:
    values.append((field,label,number(cells[col]) if col is not None and col<len(cells) else None,'km'))
   values.append(('wire','Sârmă',number(raw.get('wire')),'t'))
-  if not any(value is not None and value>0 and field!='started' for field,label,value,unit in values):continue
-  key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{},'warnings':[],'products':[]})
+  if not any(value is not None and value>0 and field!='started' for field,label,value,unit in values):
+   key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{},'warnings':[],'products':[],'allocated':[]})
+   group['allocated'].append({'product':row['product'],'material':row['material'],'message':'Metal alocat, dar încă nu s-a pornit trefilarea produsului.'})
+   continue
+  key=name.casefold();group=groups.setdefault(key,{'client':name,'stages':{},'warnings':[],'products':[],'allocated':[]})
   product={'product':row['product'],'material':row['material'],'stages':[]}
   for field,label,value,unit in values:
    if value is None:continue

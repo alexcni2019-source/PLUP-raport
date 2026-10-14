@@ -29,6 +29,8 @@ def build(plan,payload,previous=None,previous_payload=None):
  result['clients']=client_build(plan,payload)
  from server.client_flow import build as flow_build
  result['client_flow']=flow_build(plan,payload)
+ from server.client_flow_render import pages
+ result['flow_pages']=[{'client':group['client'],'page':i} for i,(group,rows) in enumerate(pages(result))]
  if previous is None:return result
  old=previous['rows'];nc=Counter(identity(r) for r in rows);oc=Counter(identity(r) for r in old)
  current={identity(r):r for r in rows if r['product'].strip() and nc[identity(r)]==1};prior={identity(r):r for r in old if r['product'].strip() and oc[identity(r)]==1}
