@@ -22,14 +22,22 @@ def image(plan,insights,theme):
  p=DARK if theme=='dark' else LIGHT;data=build(insights,plan['sectionStock'])
  if data['missing']:raise ValueError('Nu pot completa tonele pentru: '+', '.join(data['missing'])+'. Verifică denumirile produselor și etapele din plan.')
  rows=[(r['client'],r['tons']) for r in data['clients']]+[(label,data['extras'][key]) for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”')]]+[('TOTAL',data['total'])]
- width=1400;height=260+70*len(rows);im=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(im)
+ width=1400;height=390+76*len(rows);im=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(im)
+ from server.plan_clients import color
  brand(d,width,'.'.join(reversed(plan['date'].split('-'))),'METAL ÎN SECȚIE',p)
- d.text((40,112),'SITUAȚIA METALULUI ÎN SECȚIE',font=font(30,True),fill=p['ink'])
- d.rounded_rectangle((40,180,1360,236),10,fill=p['blue']);d.text((64,192),'CLIENT / CATEGORIE',font=font(25,True),fill=p['ink']);d.text((1170,192),'TONE',font=font(25,True),fill=p['ink'])
- for i,(name,value) in enumerate(rows):
-  y=240+i*70;bold=i==len(rows)-1
-  d.rectangle((40,y,1360,y+68),fill=p['green'] if bold else p['paper'] if i%2==0 else p['stripe'])
-  d.text((64,y+18),name,font=font(27,bold),fill=p['ink'])
+ d.text((48,120),'Metal aflat în secție',font=font(38,True),fill=p['ink'])
+ d.rounded_rectangle((48,195,1352,282),16,fill=p['green'])
+ d.text((76,219),'TOTAL GENERAL',font=font(25,True),fill=p['ink'])
+ total_text=amount(data['total'],3)+' t'
+ d.text((1318-d.textlength(total_text,font=font(38,True)),210),total_text,font=font(38,True),fill=p['success'])
+ d.text((76,310),'CLIENT / CATEGORIE',font=font(23,True),fill=p['muted'])
+ d.text((1210,310),'TONE',font=font(23,True),fill=p['muted'])
+ for i,(name,value) in enumerate(rows[:-1]):
+  y=355+i*76;manual=i>=len(data['clients'])
+  if manual:d.rounded_rectangle((48,y-4,1352,y+66),10,fill=p['head'])
+  else:d.rounded_rectangle((48,y-4,1352,y+66),10,fill=p['paper'])
+  if not manual:d.ellipse((76,y+22,89,y+35),fill=color(name,theme=='dark'))
+  d.text((110 if not manual else 76,y+14),name,font=font(28),fill=p['ink'])
   if value is not None:
-   text=amount(value,3);d.text((1300-d.textlength(text,font=font(29,bold)),y+16),text,font=font(29,bold),fill=p['ink'])
+   text=amount(value,3);d.text((1318-d.textlength(text,font=font(30,True)),y+12),text,font=font(30,True),fill=p['ink'])
  return png(im)
