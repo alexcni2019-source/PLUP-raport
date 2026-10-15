@@ -118,10 +118,14 @@ def process(data: object) -> dict:
 
 def process_plan(data: object) -> dict:
     data,source=source_table.split(data)
+    inventory_data=data.get('inventory') if isinstance(data,dict) else None
+    if inventory_data is not None:
+        from server.inventory import validate as validate_inventory
+        validate_inventory(inventory_data)
     extras=data.get('sectionStock',{'samples':'','waste':'','dead':''}) if isinstance(data,dict) else None
     if not isinstance(extras,dict) or set(extras)!={'samples','waste','dead'}:raise InvalidReport('Stocuri de secție invalide.')
     section_stock={k:read_amount(v,k) if str(v).strip() else None for k,v in extras.items()}
-    if isinstance(data,dict):data={k:v for k,v in data.items() if k!='sectionStock'}
+    if isinstance(data,dict):data={k:v for k,v in data.items() if k not in ('sectionStock','inventory')}
     if not isinstance(data,dict) or set(data)!={"mode","date","week","incoming","rows"} or data["mode"]!="plan":
         raise InvalidReport("Structură invalidă a planului.")
     try: start=date.fromisoformat(data["date"])
@@ -144,7 +148,7 @@ def process_plan(data: object) -> dict:
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return source_table.attach({"mode":"plan","sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
+    return source_table.attach({"mode":"plan",**({"inventory":inventory_data} if inventory_data is not None else {}),"sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:
@@ -215,9 +219,20 @@ def database():
 
 def plan_insights(report,payload):
     conn=database()
-    try:previous,old=plan_analysis.previous(conn,report["date"],process_plan)
+    try:
+        previous,old=plan_analysis.previous(conn,report["date"],process_plan)
+        result=plan_analysis.build(report,payload,previous,old)
+        if report.get('inventory'):
+            stamp=report['inventory']['date'];context=[]
+            for row in conn.execute("SELECT id,payload FROM reports WHERE mode IN ('weekday','weekend') AND report_date<=? AND report_date>=date(?,'-2 days') ORDER BY created_at DESC LIMIT 30",(stamp,stamp)):
+                try:production=validate_report(json.loads(row['payload']))
+                except (ValueError,TypeError,KeyError):continue
+                for day in production['days']:
+                    if day['date']==stamp:
+                        context.append({'id':row['id'],'date':stamp,'handedAl':day['values']['al'],'wasteAl':day['values']['wasteAl']})
+            result['section_stock']['productionContext']=context
+        return result
     finally:conn.close()
-    return plan_analysis.build(report,payload,previous,old)
 
 
 def remember_generated(payload):
@@ -436,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authorize(mutation=True):return
             identity.logout(self.headers)
             self.respond(200,b'{}','application/json',{'Set-Cookie':'__Host-plup_identity=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'});return
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -445,7 +460,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        limit=50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table") else MAX_BYTES
+        limit=50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table","/api/inventory/import") else MAX_BYTES
         if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
@@ -459,6 +474,11 @@ class Handler(BaseHTTPRequestHandler):
                         result=data_admin.preview(conn,backup) if path.endswith('preview') else data_admin.restore(conn,backup,body.get('action'),body.get('expected'),DB_PATH)
                     finally:conn.close()
                 except (ValueError,TypeError,KeyError,sqlite3.Error) as exc:self.error(400,str(exc));return
+                self.respond(200,json.dumps(result,ensure_ascii=False).encode(),'application/json');return
+            if path=="/api/inventory/import":
+                from server.inventory import read as read_inventory
+                try:result=read_inventory(body)
+                except ValueError as exc:raise InvalidReport(str(exc))
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),'application/json');return
             if path=="/api/smart/table":
                 result=table_import.read(body)

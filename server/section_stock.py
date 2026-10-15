@@ -19,9 +19,10 @@ def build(insights,extras):
 
 def image(plan,insights,theme):
  from server.corporate import LIGHT,DARK,brand
- p=DARK if theme=='dark' else LIGHT;data=build(insights,plan['sectionStock'])
+ p=DARK if theme=='dark' else LIGHT;data=insights.get('section_stock') or build(insights,plan['sectionStock'])
+ if data.get('basis')=='inventory':plan={**plan,'date':data['date']}
  if data['missing']:raise ValueError('Nu pot completa tonele pentru: '+', '.join(data['missing'])+'. Verifică denumirile produselor și etapele din plan.')
- rows=[(r['client'],r['tons']) for r in data['clients']]+[(label,data['extras'][key]) for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”')]]+[('TOTAL',data['total'])]
+ rows=[(r['client'],r['tons']) for r in data['clients']]+([] if data.get('basis')=='inventory' else [(label,data['extras'][key]) for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”')]])+[('TOTAL',data['total'])]
  width=1400;height=390+76*len(rows);im=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(im)
  from server.plan_clients import color
  brand(d,width,'.'.join(reversed(plan['date'].split('-'))),'METAL ÎN SECȚIE',p)
