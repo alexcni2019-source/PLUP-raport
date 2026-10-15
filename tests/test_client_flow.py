@@ -65,3 +65,13 @@ class ClientFlowTests(unittest.TestCase):
   raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':rows}
   result=build(app.process_plan(raw),raw)[0]
   self.assertEqual([s['label'] for s in result['stages']],['Funie / bară','Sârmă','Vane','Manta finală'])
+
+ def test_report_uses_adjusted_stock_client_total(self):
+  from server.client_flow_render import image
+  from PIL import ImageDraw
+  from unittest.mock import patch
+  data={'client_flow':[{'client':'SBT','stages':[{'label':'Vane','value':Decimal('1'),'unit':'km','tons':Decimal('0.6')}]}],'section_stock':{'clients':[{'client':'CLIENT EDITAT','sourceClient':'SBT','tons':Decimal('2'),'originalTons':Decimal('.6')}],'extras':{'samples':Decimal('1')},'total':Decimal('3')}}
+  seen=[];original=ImageDraw.ImageDraw.text
+  def capture(draw,xy,value,*args,**kwargs):seen.append(value);return original(draw,xy,value,*args,**kwargs)
+  with patch.object(ImageDraw.ImageDraw,'text',capture):image({'date':'2026-10-15','week':'W42'},data,'light')
+  self.assertIn('CLIENT EDITAT',seen);self.assertIn('Ajustare stoc',seen);self.assertIn('1.4 t',seen);self.assertIn('TOTAL METAL ÎN SECȚIE: 3 t',seen)
