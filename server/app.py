@@ -118,6 +118,9 @@ def process(data: object) -> dict:
 
 def process_plan(data: object) -> dict:
     data,source=source_table.split(data)
+    adjustments=data.get('stockAdjustments',{}) if isinstance(data,dict) else {}
+    if not isinstance(adjustments,dict) or len(adjustments)>120 or any(not isinstance(k,str) or len(k)>150 for k in adjustments):raise InvalidReport('Ajustări de stoc invalide.')
+    stock_adjustments={k:read_amount(v,'Ajustare '+k) for k,v in adjustments.items()}
     inventory_data=data.get('inventory') if isinstance(data,dict) else None
     if inventory_data is not None:
         from server.inventory import validate as validate_inventory
@@ -125,7 +128,7 @@ def process_plan(data: object) -> dict:
     extras=data.get('sectionStock',{'samples':'','waste':'','dead':''}) if isinstance(data,dict) else None
     if not isinstance(extras,dict) or set(extras)!={'samples','waste','dead'}:raise InvalidReport('Stocuri de secție invalide.')
     section_stock={k:read_amount(v,k) if str(v).strip() else None for k,v in extras.items()}
-    if isinstance(data,dict):data={k:v for k,v in data.items() if k not in ('sectionStock','inventory')}
+    if isinstance(data,dict):data={k:v for k,v in data.items() if k not in ('sectionStock','inventory','stockAdjustments')}
     if not isinstance(data,dict) or set(data)!={"mode","date","week","incoming","rows"} or data["mode"]!="plan":
         raise InvalidReport("Structură invalidă a planului.")
     try: start=date.fromisoformat(data["date"])
@@ -148,7 +151,7 @@ def process_plan(data: object) -> dict:
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return source_table.attach({"mode":"plan",**({"inventory":inventory_data} if inventory_data is not None else {}),"sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
+    return source_table.attach({"mode":"plan","stockAdjustments":stock_adjustments,**({"inventory":inventory_data} if inventory_data is not None else {}),"sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:

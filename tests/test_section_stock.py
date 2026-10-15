@@ -17,3 +17,8 @@ class StockTests(unittest.TestCase):
   self.assertEqual(app.process_plan(raw)['sectionStock'],{'samples':None,'waste':None,'dead':None})
   raw['sectionStock']={'samples':'-1','waste':'','dead':''}
   with self.assertRaises(ValueError):app.process_plan(raw)
+ def test_manual_adjustment_recalculates_without_modifying_inventory_source(self):
+  from server.section_stock import adjust
+  source={'clients':[{'client':'SBT','tons':Decimal('10')},{'client':'TUB','tons':Decimal('2')}],'extras':{},'total':Decimal('12'),'missing':[],'basis':'inventory'}
+  result=adjust(source,{'SBT':Decimal('15.5')})
+  self.assertEqual(result['total'],Decimal('17.5'));self.assertEqual(result['referenceTotal'],Decimal('12'));self.assertEqual(source['clients'][0]['tons'],Decimal('10'))

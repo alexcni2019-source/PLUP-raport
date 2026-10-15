@@ -17,6 +17,16 @@ def build(insights,extras):
  total=sum((r['tons'] for r in rows if r['tons'] is not None),Decimal(0))+sum((v for v in extras.values() if v is not None),Decimal(0))
  return {'clients':rows,'extras':extras,'total':None if missing else total,'missing':missing}
 
+def adjust(data,overrides):
+ if not overrides:return data
+ data={**data,'clients':[{**r} for r in data['clients']],'referenceTotal':data['total']}
+ for row in data['clients']:
+  if row['client'] in overrides:row['originalTons']=row['tons'];row['tons']=overrides[row['client']]
+ missing=[r['client'] for r in data['clients'] if r['tons'] is None]
+ data['missing']=missing
+ data['total']=None if missing else sum((r['tons'] for r in data['clients']),Decimal(0))+sum((v for v in data['extras'].values() if v is not None),Decimal(0))
+ return data
+
 def image(plan,insights,theme):
  from server.corporate import LIGHT,DARK,brand
  p=DARK if theme=='dark' else LIGHT;data=insights.get('section_stock') or build(insights,plan['sectionStock'])
