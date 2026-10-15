@@ -21,7 +21,7 @@ def build(plan,payload,material=None):
    col=source['columns'].get(field) if source else None
    value=number(cells[col]) if col is not None and col<len(cells) else (number(raw.get(field)) if not source else None)
    values.append((field,label,value,'km'))
-  for field,label,col in [('started','KM porniți',pair[0]),('delivered','KM predați',pair[1])]:
+  for field,label,col in [('started','KM planificați',pair[0]),('delivered','KM predați',pair[1])]:
    values.append((field,label,number(cells[col]) if col is not None and col<len(cells) else None,'km'))
   values.append(('wire','Sârmă',number(raw.get('wire')),'t'))
   if not any(value is not None and value>0 and field!='started' for field,label,value,unit in values):
@@ -44,6 +44,8 @@ def build(plan,payload,material=None):
      calculated=value*ratio;item['tons']+=calculated
    if value>0:product['stages'].append({'label':label,'value':value,'unit':unit,'tons':calculated})
   if product['stages']:group['products'].append(product)
+ order={key:i for i,key in enumerate(['started','delivered','bar','wire','vane','cable','mi','armored','mf'])}
  for group in groups.values():
+  group['stages']=dict(sorted(group['stages'].items(),key=lambda item:order.get(item[0],99)))
   group['stages']=[{**v,'tons':v['tons'] if v['unit']=='km' and v.pop('estimable') else None} for v in group['stages'].values()]
  return sorted(groups.values(),key=lambda g:g['client'].casefold())

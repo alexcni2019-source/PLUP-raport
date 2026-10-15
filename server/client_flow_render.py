@@ -30,8 +30,8 @@ def image(plan,insights,theme,page=0):
    maximum=max((float(r['value']) for r in g['stages'] if r['unit']=='km'),default=0) or 1
    for i,r in enumerate(g['stages']):
     ry=y+82+i*58;d.text((x+24,ry),r['label'],font=font(23),fill=p['ink'])
-    value=amount(r['value'],3)+' '+r['unit']
-    if r['tons'] is not None:value+=' · '+amount(r['tons'],3)+' t'
+    value=amount(r['value'],2 if r['unit']=='t' else 3)+' '+r['unit']
+    if r['tons'] is not None:value+=' · '+amount(r['tons'],2)+' t'
     d.text((x+card_width-24-d.textlength(value,font=font(24,True)),ry),value,font=font(24,True),fill=p['ink'])
     if r['unit']=='km':
      d.rounded_rectangle((x+24,ry+35,x+card_width-24,ry+42),3,fill=p['head']);length=(card_width-48)*float(r['value'])/maximum

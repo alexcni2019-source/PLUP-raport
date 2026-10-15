@@ -37,7 +37,7 @@ class ClientFlowTests(unittest.TestCase):
    seen=[];original=ImageDraw.ImageDraw.text
    def capture(draw,xy,value,*args,**kwargs):seen.append(value);return original(draw,xy,value,*args,**kwargs)
    with patch.object(ImageDraw.ImageDraw,'text',capture):result=plan_image(report,theme,insights,'clients')
-   self.assertIn('SBT',seen);self.assertIn('Manta finală',seen);self.assertIn('3 km · 6.328 t',seen);self.assertIn('2 t',seen)
+   self.assertIn('SBT',seen);self.assertIn('Manta finală',seen);self.assertIn('3 km · 6.33 t',seen);self.assertIn('2 t',seen)
    self.assertEqual(Image.open(BytesIO(result)).width,2400)
 
  def test_closed_products_removed_from_client_totals_and_details(self):
@@ -53,9 +53,15 @@ class ClientFlowTests(unittest.TestCase):
   result=build(app.process_plan(raw),raw)
   self.assertEqual([g['client'] for g in result],['LEMAR','TUB']);self.assertEqual(len(result[0]['allocated']),1);self.assertEqual(result[0]['stages'],[])
   self.assertEqual(len(result[1]['products']),1);self.assertEqual(len(result[1]['allocated']),1)
-  self.assertEqual(next(s for s in result[1]['stages'] if s['label']=='KM porniți')['value'],Decimal('4'))
+  self.assertEqual(next(s for s in result[1]['stages'] if s['label']=='KM planificați')['value'],Decimal('4'))
 
  def test_flow_landscape_pagination_preserves_every_detail(self):
   from server.client_flow_render import pages
   g={'client':'SBT','products':[{'product':'1X240','material':'AL','stages':[{'label':'Vane','value':Decimal(1),'unit':'km','tons':Decimal(1)}]*35}],'allocated':[]}
   result=pages({'client_flow':[g]});self.assertEqual(len(result),1)
+
+ def test_stages_follow_fixed_process_order(self):
+  rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':'1X240','mf':'2'}, {**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':'1X240','bar':'3','wire':'1','vane':'1'}]
+  raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':rows}
+  result=build(app.process_plan(raw),raw)[0]
+  self.assertEqual([s['label'] for s in result['stages']],['Funie / bară','Sârmă','Vane','Manta finală'])
