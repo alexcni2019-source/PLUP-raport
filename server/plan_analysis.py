@@ -30,6 +30,8 @@ def build(plan,payload,previous=None,previous_payload=None):
  from server.client_flow import build as flow_build
  result['client_flow']=flow_build(plan,payload)
  from server.client_flow_render import pages
+ from server.section_stock import build as stock_build
+ result['section_stock']=stock_build(result,plan.get('sectionStock',{}))
  result['flow_pages']=[{'client':'Toți clienții','page':0}] if pages(result) else []
  if previous is None:return result
  old=previous['rows'];nc=Counter(identity(r) for r in rows);oc=Counter(identity(r) for r in old)

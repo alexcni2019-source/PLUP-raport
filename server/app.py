@@ -118,6 +118,10 @@ def process(data: object) -> dict:
 
 def process_plan(data: object) -> dict:
     data,source=source_table.split(data)
+    extras=data.get('sectionStock',{'samples':'','waste':'','dead':''}) if isinstance(data,dict) else None
+    if not isinstance(extras,dict) or set(extras)!={'samples','waste','dead'}:raise InvalidReport('Stocuri de secție invalide.')
+    section_stock={k:read_amount(v,k) if str(v).strip() else None for k,v in extras.items()}
+    if isinstance(data,dict):data={k:v for k,v in data.items() if k!='sectionStock'}
     if not isinstance(data,dict) or set(data)!={"mode","date","week","incoming","rows"} or data["mode"]!="plan":
         raise InvalidReport("Structură invalidă a planului.")
     try: start=date.fromisoformat(data["date"])
@@ -140,7 +144,7 @@ def process_plan(data: object) -> dict:
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return source_table.attach({"mode":"plan","date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
+    return source_table.attach({"mode":"plan","sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:
@@ -509,8 +513,8 @@ class Handler(BaseHTTPRequestHandler):
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
                 page=int(params.get("page",[0])[0]);section=params.get("section",["summary"])[0]
                 if report["mode"] in ("plan","forecast"):
-                    if (page!=0 and section!="clients") or section not in (("summary","table","clients") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
-                    image=plan_image(report,theme,plan_insights(report,body) if section in ("summary","clients") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
+                    if (page!=0 and section not in ("clients","stock")) or section not in (("summary","table","clients","stock") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
+                    image=plan_image(report,theme,plan_insights(report,body) if section in ("summary","clients","stock") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
                 else:image=production_image(report,page,theme)
             except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
