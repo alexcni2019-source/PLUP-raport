@@ -35,10 +35,10 @@ def build(plan,payload,previous=None,previous_payload=None):
  if plan.get('inventory'):
   from server.inventory import summary as inventory_summary
   estimate=stock_build({'client_flow':flow_build(plan,payload,'AL')},{})
-  result['section_stock']=inventory_summary(plan['inventory'],estimate,plan['date'],plan['rows'])
-  result['section_stock']['planEstimate']=estimate['total']
+  result['inventory_review']=inventory_summary(plan['inventory'],estimate,plan['date'],plan['rows'])
+  result['inventory_review']['planEstimate']=estimate['total']
  from server.section_stock import adjust
- result['section_stock']=adjust(result['section_stock'],plan.get('stockAdjustments',{}))
+ result['section_stock']=adjust(result['section_stock'],plan.get('stockAdjustments',{}),plan.get('stockNames',{}))
  result['flow_pages']=[{'client':'Toți clienții','page':0}] if pages(result) else []
  if previous is None:return result
  old=previous['rows'];nc=Counter(identity(r) for r in rows);oc=Counter(identity(r) for r in old)

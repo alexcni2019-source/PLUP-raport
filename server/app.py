@@ -118,6 +118,8 @@ def process(data: object) -> dict:
 
 def process_plan(data: object) -> dict:
     data,source=source_table.split(data)
+    stock_names=data.get('stockNames',{}) if isinstance(data,dict) else {}
+    if not isinstance(stock_names,dict) or len(stock_names)>120 or any(not isinstance(k,str) or not isinstance(v,str) or not v.strip() or len(k)>150 or len(v)>120 or any(ord(c)<32 for c in v) for k,v in stock_names.items()):raise InvalidReport('Nume client invalid.')
     adjustments=data.get('stockAdjustments',{}) if isinstance(data,dict) else {}
     if not isinstance(adjustments,dict) or len(adjustments)>120 or any(not isinstance(k,str) or len(k)>150 for k in adjustments):raise InvalidReport('Ajustări de stoc invalide.')
     stock_adjustments={k:read_amount(v,'Ajustare '+k) for k,v in adjustments.items()}
@@ -128,7 +130,7 @@ def process_plan(data: object) -> dict:
     extras=data.get('sectionStock',{'samples':'','waste':'','dead':''}) if isinstance(data,dict) else None
     if not isinstance(extras,dict) or set(extras)!={'samples','waste','dead'}:raise InvalidReport('Stocuri de secție invalide.')
     section_stock={k:read_amount(v,k) if str(v).strip() else None for k,v in extras.items()}
-    if isinstance(data,dict):data={k:v for k,v in data.items() if k not in ('sectionStock','inventory','stockAdjustments')}
+    if isinstance(data,dict):data={k:v for k,v in data.items() if k not in ('sectionStock','inventory','stockAdjustments','stockNames')}
     if not isinstance(data,dict) or set(data)!={"mode","date","week","incoming","rows"} or data["mode"]!="plan":
         raise InvalidReport("Structură invalidă a planului.")
     try: start=date.fromisoformat(data["date"])
@@ -151,7 +153,7 @@ def process_plan(data: object) -> dict:
                 raise InvalidReport("Text invalid în plan.")
             else: row[key]=val.strip()
         rows.append(row)
-    return source_table.attach({"mode":"plan","stockAdjustments":stock_adjustments,**({"inventory":inventory_data} if inventory_data is not None else {}),"sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
+    return source_table.attach({"mode":"plan","stockNames":stock_names,"stockAdjustments":stock_adjustments,**({"inventory":inventory_data} if inventory_data is not None else {}),"sectionStock":section_stock,"date":start.isoformat(),"week":source_table.plan_week(source,data["week"].strip()),"incoming":read_amount(data["incoming"], "Intrări metal"),"rows":rows,"totals":totals},source)
 
 
 def process_forecast(data: object) -> dict:
@@ -233,7 +235,7 @@ def plan_insights(report,payload):
                 for day in production['days']:
                     if day['date']==stamp:
                         context.append({'id':row['id'],'date':stamp,'handedAl':day['values']['al'],'wasteAl':day['values']['wasteAl']})
-            result['section_stock']['productionContext']=context
+            result['inventory_review']['productionContext']=context
         return result
     finally:conn.close()
 

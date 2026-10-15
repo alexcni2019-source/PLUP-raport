@@ -22,3 +22,8 @@ class StockTests(unittest.TestCase):
   source={'clients':[{'client':'SBT','tons':Decimal('10')},{'client':'TUB','tons':Decimal('2')}],'extras':{},'total':Decimal('12'),'missing':[],'basis':'inventory'}
   result=adjust(source,{'SBT':Decimal('15.5')})
   self.assertEqual(result['total'],Decimal('17.5'));self.assertEqual(result['referenceTotal'],Decimal('12'));self.assertEqual(source['clients'][0]['tons'],Decimal('10'))
+ def test_client_name_can_change_without_changing_tonnes(self):
+  from server.section_stock import adjust
+  source={'clients':[{'client':'SBT','tons':Decimal('10')}],'extras':{'samples':Decimal('1')},'total':Decimal('11'),'missing':[]}
+  result=adjust(source,{}, {'SBT':'CLIENT NOU'})
+  self.assertEqual(result['clients'][0]['client'],'CLIENT NOU');self.assertEqual(result['total'],Decimal('11'));self.assertEqual(result['clients'][0]['sourceClient'],'SBT')

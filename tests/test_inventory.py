@@ -32,8 +32,8 @@ class InventoryTests(unittest.TestCase):
  def test_plan_persistence_and_inventory_png(self):
   data=inventory.read(fixture());raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','inventory':data,'rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':'1X240','bar':'1'}]}
   plan=app.process_plan(raw);analysis=plan_analysis.build(plan,raw)
-  self.assertEqual(analysis['section_stock']['basis'],'inventory');self.assertEqual(analysis['section_stock']['total'],Decimal('1.1'))
+  self.assertEqual(analysis['inventory_review']['basis'],'inventory');self.assertEqual(analysis['inventory_review']['total'],Decimal('1.1'))
   self.assertTrue(image(plan,analysis,'light').startswith(b'\x89PNG'))
   with tempfile.TemporaryDirectory() as folder,patch.object(app,'DB_PATH',Path(folder)/'db.sqlite3'):
    conn=app.database();conn.execute('INSERT INTO reports VALUES (?,?,?,?,?)',('test','weekday','2026-10-15','now',json.dumps({'mode':'weekday','date':'2026-10-15','values':{'2026-10-15':{}}})));conn.commit();conn.close()
-   result=app.plan_insights(plan,raw);self.assertEqual(len(result['section_stock']['productionContext']),1)
+   result=app.plan_insights(plan,raw);self.assertEqual(len(result['inventory_review']['productionContext']),1)
