@@ -17,9 +17,14 @@ def build(insights,extras):
  total=sum((r['tons'] for r in rows if r['tons'] is not None),Decimal(0))+sum((v for v in extras.values() if v is not None),Decimal(0))
  return {'clients':rows,'extras':extras,'total':None if missing else total,'missing':missing}
 
+def subtotals(data):
+ clients_total=None if any(r['tons'] is None for r in data['clients']) else sum((r['tons'] for r in data['clients']),Decimal(0))
+ other_total=sum((v for v in data['extras'].values() if v is not None),Decimal(0))
+ return {**data,'clientsTotal':clients_total,'otherTotal':other_total}
+
 def adjust(data,overrides,names=None):
  names=names or {}
- if not overrides and not names:return data
+ if not overrides and not names:return subtotals(data)
  data={**data,'clients':[{**r} for r in data['clients']],'referenceTotal':data['total']}
  for row in data['clients']:
   original=row['client'];row['sourceClient']=original
@@ -28,30 +33,31 @@ def adjust(data,overrides,names=None):
  missing=[r['client'] for r in data['clients'] if r['tons'] is None]
  data['missing']=missing
  data['total']=None if missing else sum((r['tons'] for r in data['clients']),Decimal(0))+sum((v for v in data['extras'].values() if v is not None),Decimal(0))
- return data
+ return subtotals(data)
 
 def image(plan,insights,theme):
  from server.corporate import LIGHT,DARK,brand
  p=DARK if theme=='dark' else LIGHT;data=insights.get('section_stock') or build(insights,plan['sectionStock'])
  if data.get('basis')=='inventory':plan={**plan,'date':data['date']}
  if data['missing']:raise ValueError('Nu pot completa tonele pentru: '+', '.join(data['missing'])+'. Verifică denumirile produselor și etapele din plan.')
- rows=[(r['client'],r['tons']) for r in data['clients']]+([] if data.get('basis')=='inventory' else [(label,data['extras'][key]) for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”')]])+[('TOTAL',data['total'])]
- width=1400;height=390+76*len(rows);im=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(im)
+ data=subtotals(data)
+ rows=[(r['client'],r['tons'],'client') for r in data['clients']]+[('TOTAL CLIENȚI',data['clientsTotal'],'subtotal')]
+ if data.get('basis')!='inventory':
+  rows += [(label,data['extras'].get(key),'manual') for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”')]]
+  rows += [('TOTAL MOSTRE + DEȘEU + STOC MORT',data['otherTotal'],'subtotal')]
+ rows += [('TOTAL GENERAL',data['total'],'grand')]
+ width=1400;height=300+76*len(rows);im=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(im)
  from server.plan_clients import color
  brand(d,width,'.'.join(reversed(plan['date'].split('-'))),'METAL ÎN SECȚIE',p)
  d.text((48,120),'Metal aflat în secție',font=font(38,True),fill=p['ink'])
- d.rounded_rectangle((48,195,1352,282),16,fill=p['green'])
- d.text((76,219),'TOTAL GENERAL',font=font(25,True),fill=p['ink'])
- total_text=amount(data['total'],3)+' t'
- d.text((1318-d.textlength(total_text,font=font(38,True)),210),total_text,font=font(38,True),fill=p['success'])
- d.text((76,310),'CLIENT / CATEGORIE',font=font(23,True),fill=p['muted'])
- d.text((1210,310),'TONE',font=font(23,True),fill=p['muted'])
- for i,(name,value) in enumerate(rows[:-1]):
-  y=355+i*76;manual=i>=len(data['clients'])
-  if manual:d.rounded_rectangle((48,y-4,1352,y+66),10,fill=p['head'])
-  else:d.rounded_rectangle((48,y-4,1352,y+66),10,fill=p['paper'])
-  if not manual:d.ellipse((76,y+22,89,y+35),fill=color(name,theme=='dark'))
-  d.text((110 if not manual else 76,y+14),name,font=font(28),fill=p['ink'])
+ d.text((76,200),'CLIENT / CATEGORIE',font=font(23,True),fill=p['muted'])
+ d.text((1210,200),'TONE',font=font(23,True),fill=p['muted'])
+ for i,(name,value,kind) in enumerate(rows):
+  y=245+i*76;bold=kind in ('subtotal','grand')
+  fill=p['green'] if kind=='grand' else p['blue'] if kind=='subtotal' else p['head'] if kind=='manual' else p['paper']
+  d.rounded_rectangle((48,y-4,1352,y+66),10,fill=fill)
+  if kind=='client':d.ellipse((76,y+22,89,y+35),fill=color(name,theme=='dark'))
+  d.text((110 if kind=='client' else 76,y+14),name,font=font(27,bold),fill=p['ink'])
   if value is not None:
-   text=amount(value,3);d.text((1318-d.textlength(text,font=font(30,True)),y+12),text,font=font(30,True),fill=p['ink'])
+   text=amount(value,3);d.text((1318-d.textlength(text,font=font(30,True)),y+12),text,font=font(30,True),fill=p['success'] if kind=='grand' else p['ink'])
  return png(im)

@@ -27,3 +27,11 @@ class StockTests(unittest.TestCase):
   source={'clients':[{'client':'SBT','tons':Decimal('10')}],'extras':{'samples':Decimal('1')},'total':Decimal('11'),'missing':[]}
   result=adjust(source,{}, {'SBT':'CLIENT NOU'})
   self.assertEqual(result['clients'][0]['client'],'CLIENT NOU');self.assertEqual(result['total'],Decimal('11'));self.assertEqual(result['clients'][0]['sourceClient'],'SBT')
+
+ def test_separate_subtotals_include_client_adjustments(self):
+  from server.section_stock import adjust
+  source={'clients':[{'client':'SBT','tons':Decimal('10')},{'client':'TUB','tons':Decimal('2')}],'extras':{'samples':Decimal('1'),'waste':Decimal('.2'),'dead':Decimal('.3')},'total':Decimal('13.5'),'missing':[]}
+  original=adjust(source,{})
+  self.assertEqual(original['clientsTotal'],Decimal('12'));self.assertEqual(original['otherTotal'],Decimal('1.5'))
+  edited=adjust(source,{'SBT':Decimal('15')})
+  self.assertEqual(edited['clientsTotal'],Decimal('17'));self.assertEqual(edited['total'],edited['clientsTotal']+edited['otherTotal'])
