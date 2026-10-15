@@ -64,7 +64,7 @@ class ClientFlowTests(unittest.TestCase):
   rows=[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':'1X240','mf':'2'}, {**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':'1X240','bar':'3','wire':'1','vane':'1'}]
   raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':rows}
   result=build(app.process_plan(raw),raw)[0]
-  self.assertEqual([s['label'] for s in result['stages']],['Funie / bară','Sârmă','Vane','Manta finală'])
+  self.assertEqual([s['label'] for s in result['stages']],['Sârmă','Funie / bară','Vane','Manta finală'])
 
  def test_report_uses_adjusted_stock_client_total(self):
   from server.client_flow_render import image
@@ -74,4 +74,4 @@ class ClientFlowTests(unittest.TestCase):
   seen=[];original=ImageDraw.ImageDraw.text
   def capture(draw,xy,value,*args,**kwargs):seen.append(value);return original(draw,xy,value,*args,**kwargs)
   with patch.object(ImageDraw.ImageDraw,'text',capture):image({'date':'2026-10-15','week':'W42'},data,'light')
-  self.assertIn('CLIENT EDITAT',seen);self.assertIn('Ajustare stoc',seen);self.assertIn('1.4 t',seen);self.assertIn('TOTAL METAL ÎN SECȚIE: 3 t',seen)
+  self.assertIn('CLIENT EDITAT',seen);self.assertNotIn('Ajustare stoc',seen);self.assertIn('2 t',seen);self.assertIn('TOTAL METAL ÎN SECȚIE: 3 t',seen)

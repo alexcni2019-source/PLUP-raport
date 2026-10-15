@@ -1,6 +1,5 @@
 """Compact client process summary; product-level calculations remain in analysis."""
 from PIL import Image,ImageDraw
-from decimal import Decimal
 from server.render import font,amount,png,wrapped
 from server.plan_clients import color
 
@@ -13,15 +12,10 @@ def image(plan,insights,theme,page=0):
  if page!=0:raise ValueError('Pagină invalidă.')
  p=DARK if theme=='dark' else LIGHT;groups=[]
  stock=insights.get('section_stock',{});lookup={r.get('sourceClient',r['client']):r for r in stock.get('clients',[])}
- from server.section_stock import PROCESS
  for original in insights.get('client_flow',[]):
   g={**original,'stages':[dict(r) for r in original['stages']]};entry=lookup.get(original['client'])
   if entry:
    g['client']=entry['client'];g['stockTons']=entry['tons']
-   calculated=sum((r['value'] if r['unit']=='t' else r['tons'] for r in g['stages'] if r['label'] in PROCESS and (r['unit']=='t' or r['tons'] is not None)),Decimal(0))
-   if entry['tons'] is not None and 'originalTons' in entry:
-    delta=entry['tons']-calculated
-    if delta:g['stages'].append({'label':'Ajustare stoc','value':delta,'unit':'t','tons':None})
   groups.append(g)
  columns=3;width=2400;card_width=750;row_heights=[]
  for i in range(0,len(groups),columns):

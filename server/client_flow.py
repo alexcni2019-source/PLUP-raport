@@ -44,7 +44,7 @@ def build(plan,payload,material=None):
      calculated=value*ratio;item['tons']+=calculated
    if value>0:product['stages'].append({'label':label,'value':value,'unit':unit,'tons':calculated})
   if product['stages']:group['products'].append(product)
- order={key:i for i,key in enumerate(['started','delivered','bar','wire','vane','cable','mi','armored','mf'])}
+ order={key:i for i,key in enumerate(['started','wire','bar','vane','cable','mi','armored','mf','delivered'])}
  for group in groups.values():
   group['stages']=dict(sorted(group['stages'].items(),key=lambda item:order.get(item[0],99)))
   group['stages']=[{**v,'tons':v['tons'] if v['unit']=='km' and v.pop('estimable') else None} for v in group['stages'].values()]
