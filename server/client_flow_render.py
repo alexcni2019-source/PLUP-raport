@@ -52,7 +52,7 @@ def image(plan,insights,theme,page=0):
      d.text((x+24,ry+28*k),line,font=font(22),fill=p['muted'])
   y+=h+24
  if stock.get('total') is not None:
-  parts=[label+': '+amount(value,2)+' t' for key,label in [('samples','Mostre'),('waste','Deșeu în secție'),('dead','Stoc mort')] if (value:=stock.get('extras',{}).get(key)) is not None]
+  parts=[label+': '+amount(value,2)+' t' for key,label in [('samples','Mostre'),('waste','Deșeu în secție'),('dead','Stoc mort'),('blocked','Semifabricate blocate')] if (value:=stock.get('extras',{}).get(key)) is not None]
   if parts:d.text((40,height-100),'   ·   '.join(parts),font=font(25),fill=p['muted'])
   total='TOTAL METAL ÎN SECȚIE: '+amount(stock['total'],2)+' t'
   d.text((40,height-60),total,font=font(30,True),fill=p['ink'])

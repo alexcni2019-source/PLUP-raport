@@ -43,8 +43,8 @@ def image(plan,insights,theme):
  data=subtotals(data)
  rows=[(r['client'],r['tons'],'client') for r in data['clients']]+[('TOTAL CLIENȚI',data['clientsTotal'],'subtotal')]
  if data.get('basis')!='inventory':
-  rows += [(label,data['extras'].get(key),'manual') for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”')]]
-  rows += [('TOTAL MOSTRE + DEȘEU + STOC MORT',data['otherTotal'],'subtotal')]
+  rows += [(label,data['extras'].get(key),'manual') for key,label in [('samples','Mostre'),('waste','Deșeu (doar ce e în secție)'),('dead','Stoc „mort”'),('blocked','Semifabricate blocate')]]
+  rows += [('TOTAL MOSTRE, DEȘEU ȘI ALTE STOCURI',data['otherTotal'],'subtotal')]
  rows += [('TOTAL GENERAL',data['total'],'grand')]
  width=1400;height=300+76*len(rows);im=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(im)
  from server.plan_clients import color

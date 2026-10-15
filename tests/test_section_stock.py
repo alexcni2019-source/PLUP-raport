@@ -10,11 +10,11 @@ class StockTests(unittest.TestCase):
   self.assertEqual(stock['clients'][0]['tons'],Decimal('4.80792'));self.assertEqual(stock['total'],Decimal('6.50792'))
   for theme in ['light','dark']:self.assertTrue(image(plan,data,theme).startswith(b'\x89PNG'))
  def test_missing_tonnes_never_silently_replaced_with_zero(self):
-  result=build({'client_flow':[{'client':'SBT','stages':[{'label':'Vane','value':Decimal(2),'unit':'km','tons':None},{'label':'KM porniți','value':Decimal(100),'unit':'km','tons':Decimal(60)}]}]}, {'samples':None,'waste':None,'dead':None})
+  result=build({'client_flow':[{'client':'SBT','stages':[{'label':'Vane','value':Decimal(2),'unit':'km','tons':None},{'label':'KM porniți','value':Decimal(100),'unit':'km','tons':Decimal(60)}]}]}, {'samples':None,'waste':None,'dead':None,'blocked':None})
   self.assertIsNone(result['total']);self.assertEqual(result['missing'],['SBT · Vane'])
  def test_old_plans_and_invalid_manual_values(self):
   raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL'}]}
-  self.assertEqual(app.process_plan(raw)['sectionStock'],{'samples':None,'waste':None,'dead':None})
+  self.assertEqual(app.process_plan(raw)['sectionStock'],{'samples':None,'waste':None,'dead':None,'blocked':None})
   raw['sectionStock']={'samples':'-1','waste':'','dead':''}
   with self.assertRaises(ValueError):app.process_plan(raw)
  def test_manual_adjustment_recalculates_without_modifying_inventory_source(self):
@@ -35,3 +35,8 @@ class StockTests(unittest.TestCase):
   self.assertEqual(original['clientsTotal'],Decimal('12'));self.assertEqual(original['otherTotal'],Decimal('1.5'))
   edited=adjust(source,{'SBT':Decimal('15')})
   self.assertEqual(edited['clientsTotal'],Decimal('17'));self.assertEqual(edited['total'],edited['clientsTotal']+edited['otherTotal'])
+
+ def test_blocked_semifinished_stock_is_saved_and_added(self):
+  raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL'}],'sectionStock':{'samples':'1','waste':'2','dead':'3','blocked':'4.5'}}
+  plan=app.process_plan(raw);data=plan_analysis.build(plan,raw)['section_stock']
+  self.assertEqual(plan['sectionStock']['blocked'],Decimal('4.5'));self.assertEqual(data['otherTotal'],Decimal('10.5'));self.assertEqual(data['total'],Decimal('10.5'))
