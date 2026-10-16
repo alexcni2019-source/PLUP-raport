@@ -76,3 +76,10 @@ class PlanVisualTests(unittest.TestCase):
   def capture(draw,xy,value,*args,**kwargs):seen.append(value);return original(draw,xy,value,*args,**kwargs)
   with patch.object(ImageDraw.ImageDraw,'text',capture):plan_image(report,'light',data,'summary')
   self.assertIn('8.92 t',seen)
+
+ def test_remaining_editor_rename_add_remove_and_saved_round_trip(self):
+  raw=payload([row('SBT'),row('TUB')]);raw['remainingOverrides']={'SBT':'0','TUB':'0','Client redenumit':'7.4','Client nou':'2.3'}
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+  self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'Client redenumit':Decimal('7.4'),'Client nou':Decimal('2.3')})
+  self.assertEqual(data['remaining_total'],Decimal('9.7'))
+  self.assertEqual(report['totals']['AL']['planned'],Decimal('20'))
