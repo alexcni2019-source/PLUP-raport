@@ -50,5 +50,5 @@ def draw(draw,left,top,insights,p,theme):
 
   draw.rounded_rectangle((left+x,y+10,left+x+755,y+62),radius=9,fill=p['blue'])
   text(x+16,y+26,'TOTAL REST DE PREDAT',18,bold=True)
-  total=sum((r['tons'] for r,_,_ in clients))
+  total=insights.get('remaining_total',sum((r['tons'] for r,_,_ in clients)))
   text(x+635,y+23,amount(total,2)+' t',22,bold=True)

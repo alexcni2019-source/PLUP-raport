@@ -68,3 +68,11 @@ class PlanVisualTests(unittest.TestCase):
   report=app.process_plan(raw);data=plan_analysis.build(report,raw)
   self.assertEqual(data['clients'][0]['tons'],Decimal('7.4'));self.assertEqual(data['clients'][0]['calculatedTons'],Decimal('8'));self.assertEqual(data['remaining_total'],Decimal('7.4'))
   self.assertEqual(report['remainingOverrides']['SBT'],Decimal('7.4'));self.assertEqual(report['totals']['AL']['planned'],Decimal('10'))
+ def test_explicit_remaining_total_is_exported_and_saved(self):
+  raw=payload([row('SBT')]);raw['remainingOverrides']={'SBT':'7.4'};raw['remainingTotalOverride']='8.92'
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+  self.assertEqual(data['remaining_total'],Decimal('8.92'));self.assertEqual(report['remainingTotalOverride'],Decimal('8.92'))
+  seen=[];original=ImageDraw.ImageDraw.text
+  def capture(draw,xy,value,*args,**kwargs):seen.append(value);return original(draw,xy,value,*args,**kwargs)
+  with patch.object(ImageDraw.ImageDraw,'text',capture):plan_image(report,'light',data,'summary')
+  self.assertIn('8.92 t',seen)

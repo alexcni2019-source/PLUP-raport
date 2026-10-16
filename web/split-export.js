@@ -24,7 +24,7 @@
       for(const {section,title,blob,page} of blobs){
         const url=URL.createObjectURL(blob);urls.push(url);
         const wrap=document.createElement('div'),heading=document.createElement('h3'),img=document.createElement('img'),link=document.createElement('a');
-        wrap.className='image-result';heading.textContent=title;img.src=url;img.alt=title+' PLUP';link.href=url;
+        wrap.className='image-result';if(payload.mode==='plan'&&section==='summary'){const edit=document.createElement('button');edit.type='button';edit.className='secondary-button';edit.textContent='Editează restul de predat și regenerează';edit.addEventListener('click',()=>window.PLUPRemaining.open());wrap.append(edit);}heading.textContent=title;img.src=url;img.alt=title+' PLUP';link.href=url;
         link.download=`NRG_PLUP_${payload.mode}_${payload.date}_${section}_${page+1}_${payload.mode==='forecast'?(showStatus?'productie':'directiune')+'_':''}${theme}.png`;
         link.textContent=`Descarcă PNG · ${title} ↓`;wrap.append(heading,img,link);fragment.append(wrap);
       }
