@@ -1,6 +1,7 @@
 """Remaining tonnes per client: total planned minus total handed over."""
 from decimal import Decimal
 import colorsys,hashlib,re
+from server.km_completion import highlighted
 
 def color(name,dark=False):
  key=re.sub(r'\s+',' ',name.strip()).casefold()
@@ -16,7 +17,11 @@ def color(name,dark=False):
 
 def build(plan,payload):
  clients={}
- for row in plan['rows']:
+ source=plan.get('sourceTable') or payload.get('sourceTable')
+ green=highlighted(source) if source else {}
+ closed={i for i,record in enumerate(source.get('records',[])) if record['row'] in green} if source else set()
+ for i,row in enumerate(plan['rows']):
+  if i in closed:continue
   name=re.sub(r'\s+',' ',row['client'].strip())
   if not name:continue
   key=name.casefold()

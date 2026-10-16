@@ -50,11 +50,11 @@ class PlanVisualTests(unittest.TestCase):
   raw=payload([row()]);raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','STOC FUNIE (KM)','STOC BARA (KM)'],['PRODUS TEST','2','3']],'columns':{'product':0},'records':[{'row':1,'material':'AL'}]}
   data=plan_analysis.build(app.process_plan(raw),raw);self.assertIsNone(next(s['current'] for s in data['stages'] if s['key']=='bar'))
 
- def test_remaining_tonnes_include_all_products_regardless_of_km_colour(self):
+ def test_remaining_tonnes_exclude_closed_products_then_sum_open_differences(self):
   raw=payload([row('SBT'),row('SBT'),row('HELU')])
   raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI'],['PRODUS TEST','10','9,5'],['PRODUS TEST','10','9.4999'],['PRODUS TEST','5','8']],'columns':{'product':0},'records':[{'row':1,'material':'AL'},{'row':2,'material':'AL'},{'row':3,'material':'AL'}]}
   report=app.process_plan(raw);data=plan_analysis.build(report,raw)
-  self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'SBT':Decimal('16'),'HELU':Decimal('8')})
+  self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'SBT':Decimal('8')})
   self.assertEqual(report['totals']['AL']['planned'],Decimal('30'));self.assertEqual(report['totals']['AL']['handed'],Decimal('6'))
 
  def test_empty_or_zero_started_cells_do_not_exclude_positions(self):
