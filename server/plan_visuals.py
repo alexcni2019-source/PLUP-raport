@@ -10,7 +10,7 @@ def height(insights,draw):
  flow=420 if stages(insights) else 48 if goods(insights) is not None or stocks(insights) else 0
  if stocks(insights):flow+=94
  if goods(insights) is not None:flow+=80
- return max(flow+20 if flow else 0,75+sum(h for _,_,h in client_layout(draw,insights)) if insights.get('clients') else 0)
+ return max(flow+20 if flow else 0,135+sum(h for _,_,h in client_layout(draw,insights)) if insights.get('clients') else 0)
 
 def draw(draw,left,top,insights,p,theme):
  def text(x,y,value,size=18,color=None,bold=False):draw.text((left+x,y),str(value),font=font(size,bold),fill=color or p['ink'])
@@ -47,3 +47,8 @@ def draw(draw,left,top,insights,p,theme):
    center=y+h/2;draw.rounded_rectangle((left+x+265,center-7,left+x+615,center+7),radius=5,fill=p['head'])
    width=350*float(row['tons'])/maximum;draw.rounded_rectangle((left+x+265,center-7,left+x+265+max(2,width),center+7),radius=5,fill=row['darkColor'] if theme=='dark' else row['color'])
    text(x+635,center-12,amount(row['tons'],2)+' t',20,bold=True);y+=h
+
+  draw.rounded_rectangle((left+x,y+10,left+x+755,y+62),radius=9,fill=p['blue'])
+  text(x+16,y+26,'TOTAL REST DE PREDAT',18,bold=True)
+  total=sum((r['tons'] for r,_,_ in clients))
+  text(x+635,y+23,amount(total,2)+' t',22,bold=True)

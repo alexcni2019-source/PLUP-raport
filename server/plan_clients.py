@@ -27,4 +27,7 @@ def build(plan,payload):
   key=name.casefold()
   if key not in clients:clients[key]={'client':name,'tons':Decimal('0'),'color':color(name),'darkColor':color(name,True)}
   clients[key]['tons']+=row['planned']-row['handed']
+ for name,value in plan.get('remainingOverrides',{}).items():
+  key=re.sub(r'\s+',' ',name.strip()).casefold()
+  if key in clients:clients[key]['calculatedTons']=clients[key]['tons'];clients[key]['tons']=value
  return sorted((r for r in clients.values() if r['tons']>0),key=lambda r:(-r['tons'],r['client'].casefold()))

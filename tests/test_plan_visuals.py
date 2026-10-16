@@ -62,3 +62,9 @@ class PlanVisualTests(unittest.TestCase):
   raw['sourceTable']={'version':1,'date':raw['date'],'header':0,'rows':[['PRODUS','KM PORNITI','KM PREDATI'],['PRODUS TEST','',''],['PRODUS TEST','0','0']],'columns':{'product':0},'records':[{'row':1,'material':'AL'},{'row':2,'material':'AL'}]}
   data=plan_analysis.build(app.process_plan(raw),raw)
   self.assertEqual(data['clients'][0]['tons'],Decimal('16'))
+
+ def test_remaining_client_override_is_saved_and_independent_of_stock(self):
+  raw=payload([row('SBT',planned='10',handed='2',vane='1')]);raw['remainingOverrides']={'SBT':'7.4'}
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+  self.assertEqual(data['clients'][0]['tons'],Decimal('7.4'));self.assertEqual(data['clients'][0]['calculatedTons'],Decimal('8'));self.assertEqual(data['remaining_total'],Decimal('7.4'))
+  self.assertEqual(report['remainingOverrides']['SBT'],Decimal('7.4'));self.assertEqual(report['totals']['AL']['planned'],Decimal('10'))
