@@ -40,3 +40,11 @@ class StockTests(unittest.TestCase):
   raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL'}],'sectionStock':{'samples':'1','waste':'2','dead':'3','blocked':'4.5'}}
   plan=app.process_plan(raw);data=plan_analysis.build(plan,raw)['section_stock']
   self.assertEqual(plan['sectionStock']['blocked'],Decimal('4.5'));self.assertEqual(data['otherTotal'],Decimal('10.5'));self.assertEqual(data['total'],Decimal('10.5'))
+
+ def test_add_delete_clients_persist_and_export(self):
+  raw={'mode':'plan','date':'2026-10-16','week':'W43','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','client':'SBT','product':'1X240','wire':'3'}],'stockAdjustments':{'SBT':'0','Nou':'7.4'},'stockNames':{'Nou':'Client nou'},'sectionStock':{'samples':'1','waste':'2','dead':'','blocked':'0.5'}}
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw);stock=data['section_stock']
+  self.assertEqual([(r['client'],r['tons']) for r in stock['clients']],[('Client nou',Decimal('7.4'))])
+  self.assertEqual(stock['clientsTotal'],Decimal('7.4'));self.assertEqual(stock['total'],Decimal('10.9'))
+  self.assertEqual(report['stockAdjustments']['SBT'],Decimal('0'))
+  for theme in ['light','dark']:self.assertTrue(image(report,data,theme).startswith(b'\x89PNG'))

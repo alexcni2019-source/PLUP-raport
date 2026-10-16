@@ -30,6 +30,10 @@ def adjust(data,overrides,names=None):
   original=row['client'];row['sourceClient']=original
   if original in overrides:row['originalTons']=row['tons'];row['tons']=overrides[original]
   if original in names:row['client']=names[original]
+ existing={r.get('sourceClient',r['client']) for r in data['clients']}
+ for name,value in overrides.items():
+  if name not in existing:data['clients'].append({'client':names.get(name,name),'sourceClient':name,'tons':value})
+ data['clients']=[r for r in data['clients'] if r['tons'] is None or r['tons']>0]
  missing=[r['client'] for r in data['clients'] if r['tons'] is None]
  data['missing']=missing
  data['total']=None if missing else sum((r['tons'] for r in data['clients']),Decimal(0))+sum((v for v in data['extras'].values() if v is not None),Decimal(0))
