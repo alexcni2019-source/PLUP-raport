@@ -14,7 +14,7 @@ class StockTests(unittest.TestCase):
   self.assertIsNone(result['total']);self.assertEqual(result['missing'],['SBT · Vane'])
  def test_old_plans_and_invalid_manual_values(self):
   raw={'mode':'plan','date':'2026-10-15','week':'W42','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL'}]}
-  self.assertEqual(app.process_plan(raw)['sectionStock'],{'samples':None,'waste':None,'dead':None,'blocked':None})
+  self.assertEqual(app.process_plan(raw)['sectionStock'],{'samples':None,'waste':None,'dead':None,'blocked':None,'bar95':None,'bar15':None})
   raw['sectionStock']={'samples':'-1','waste':'','dead':''}
   with self.assertRaises(ValueError):app.process_plan(raw)
  def test_manual_adjustment_recalculates_without_modifying_inventory_source(self):
@@ -47,4 +47,13 @@ class StockTests(unittest.TestCase):
   self.assertEqual([(r['client'],r['tons']) for r in stock['clients']],[('Client nou',Decimal('7.4'))])
   self.assertEqual(stock['clientsTotal'],Decimal('7.4'));self.assertEqual(stock['total'],Decimal('10.9'))
   self.assertEqual(report['stockAdjustments']['SBT'],Decimal('0'))
+  for theme in ['light','dark']:self.assertTrue(image(report,data,theme).startswith(b'\x89PNG'))
+
+ def test_bar_stock_sizes_saved_totalled_and_rendered(self):
+  raw={'mode':'plan','date':'2026-10-16','week':'W43','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL'}],'sectionStock':{'samples':'1','waste':'2','dead':'','bar95':'3,25','bar15':'4.5'}}
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+  self.assertEqual(report['sectionStock']['bar95'],Decimal('3.25'))
+  self.assertEqual(report['sectionStock']['bar15'],Decimal('4.5'))
+  self.assertEqual(data['section_stock']['otherTotal'],Decimal('10.75'))
+  self.assertEqual(data['section_stock']['total'],Decimal('10.75'))
   for theme in ['light','dark']:self.assertTrue(image(report,data,theme).startswith(b'\x89PNG'))

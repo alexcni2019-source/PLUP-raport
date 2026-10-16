@@ -133,8 +133,8 @@ def process_plan(data: object) -> dict:
         from server.inventory import validate as validate_inventory
         validate_inventory(inventory_data)
     extras=data.get('sectionStock',{'samples':'','waste':'','dead':''}) if isinstance(data,dict) else None
-    if not isinstance(extras,dict) or (set(extras)-{'samples','waste','dead','blocked'} or not {'samples','waste','dead'}<=set(extras)):raise InvalidReport('Stocuri de secție invalide.')
-    extras={'blocked':'',**extras}
+    if not isinstance(extras,dict) or (set(extras)-{'samples','waste','dead','blocked','bar95','bar15'} or not {'samples','waste','dead'}<=set(extras)):raise InvalidReport('Stocuri de secție invalide.')
+    extras={'blocked':'','bar95':'','bar15':'',**extras}
     section_stock={k:read_amount(v,k) if str(v).strip() else None for k,v in extras.items()}
     if isinstance(data,dict):data={k:v for k,v in data.items() if k not in ('sectionStock','inventory','stockAdjustments','stockNames','remainingOverrides','remainingTotalOverride')}
     if not isinstance(data,dict) or set(data)!={"mode","date","week","incoming","rows"} or data["mode"]!="plan":
