@@ -83,3 +83,13 @@ class PlanVisualTests(unittest.TestCase):
   self.assertEqual({r['client']:r['tons'] for r in data['clients']},{'Client redenumit':Decimal('7.4'),'Client nou':Decimal('2.3')})
   self.assertEqual(data['remaining_total'],Decimal('9.7'))
   self.assertEqual(report['totals']['AL']['planned'],Decimal('20'))
+
+ def test_donut_segments_and_clients_use_sum_not_maximum(self):
+  raw=payload([row('A',planned='30',handed='0',bar='20',vane='80'),row('B',planned='70',handed='0')])
+  report=app.process_plan(raw);data=plan_analysis.build(report,raw)
+  arcs=[];texts=[];original=ImageDraw.ImageDraw.text;arc=ImageDraw.ImageDraw.arc
+  def record(draw,xy,value,*a,**kw):texts.append(value);return original(draw,xy,value,*a,**kw)
+  def record_arc(draw,box,start,end,*a,**kw):arcs.append(end-start);return arc(draw,box,start,end,*a,**kw)
+  with patch.object(ImageDraw.ImageDraw,'text',record),patch.object(ImageDraw.ImageDraw,'arc',record_arc):plan_image(report,'light',data,'summary')
+  self.assertEqual(arcs,[72,288]);self.assertIn('30%',texts);self.assertIn('70%',texts)
+  self.assertIn('Total · 100 km',texts)

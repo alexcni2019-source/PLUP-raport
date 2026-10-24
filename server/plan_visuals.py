@@ -1,7 +1,8 @@
-"""Independent kilometre rings and client remaining-tonne bars."""
+"""Part-to-whole kilometre donut and remaining-tonne client shares."""
+from decimal import Decimal
 from server.render import font,wrapped,amount
-COLORS={'bar':'#4e82cf','vane':'#319da6','cable':'#6c82df','mi':'#a179bc','armored':'#c17c33','mf':'#29916a'}
-def stages(insights):return [r for r in insights['stages'] if r['key']!='goods' and r['current'] is not None]
+COLORS={'bar':'#4e82cf','vane':'#319da6','cable':'#ed4698','mi':'#ef9b35','armored':'#709e43','mf':'#9578c9'}
+def stages(insights):return [r for r in insights['stages'] if r['key']!='goods' and r['current'] is not None and r['current']>0]
 def stocks(insights):return [(k,label,insights['ton_stocks'][k]) for k,label in [('wire','Sârmă'),('spool','Lită')] if insights['ton_stocks'][k] is not None]
 def goods(insights):return next((r['current'] for r in insights['stages'] if r['key']=='goods'),None)
 def client_layout(draw,insights):
@@ -18,13 +19,13 @@ def draw(draw,left,top,insights,p,theme):
  if rows or handed is not None:
   text(30,top,'SITUAȚIA PE FLUX · KM',18,bold=True)
  if rows:
-  cx=230;cy=top+225;maximum=max((float(r['current']) for r in rows),default=0) or 1
+  cx=215;cy=top+225;total=sum((r['current'] for r in rows),Decimal(0));start=-90
+  box=(left+cx-150,cy-150,left+cx+150,cy+150)
   for i,r in enumerate(rows):
-   radius=155-i*22;box=(left+cx-radius,cy-radius,left+cx+radius,cy+radius)
-   draw.ellipse(box,outline=p['head'],width=14)
-   arc=360*float(r['current'])/maximum
-   if arc:draw.arc(box,start=-90,end=-90+arc,fill=COLORS[r['key']],width=14)
-   y=top+65+i*58;draw.ellipse((left+430,y+5,left+442,y+17),fill=COLORS[r['key']]);text(455,y,r['label'],17);text(455,y+24,amount(r['current'],2)+' km',21,bold=True)
+   share=float(r['current']/total);arc=360*share
+   draw.arc(box,start=start,end=start+arc,fill=COLORS[r['key']],width=44);start+=arc
+   y=top+55+i*50;draw.ellipse((left+410,y+5,left+422,y+17),fill=COLORS[r['key']]);text(435,y,r['label'],17);text(435,y+22,amount(r['current'],2)+' km',20,bold=True);text(710,y+22,amount(Decimal(str(share*100)),2)+'%',16,p['muted'])
+  text(435,top+370,'Total · '+amount(total,2)+' km',19,bold=True)
   for value,y,size,color in [('PRODUSE',cy-24,12 if len(rows)>5 else 16,p['ink']),('(STADII)',cy-5,11 if len(rows)>5 else 14,p['ink']),('km',cy+16,12,p['muted'])]:
    w=draw.textlength(value,font=font(size,True));draw.text((left+cx-w/2,y),value,font=font(size,True),fill=color)
  y=top+420 if rows else top+48
@@ -41,14 +42,14 @@ def draw(draw,left,top,insights,p,theme):
  if handed is not None:
   draw.rounded_rectangle((left+30,y,left+796,y+66),radius=10,fill=p['blue']);text(48,y+22,'Marfă predată',18);text(560,y+18,amount(handed,2)+' km',24,p['accent'],True)
  if clients:
-  x=876;text(x,top,'REST DE PREDAT PLAN LANSAT',18,bold=True);maximum=max(float(r['tons']) for r,_,_ in clients);y=top+55
+  x=876;text(x,top,'REST DE PREDAT PLAN LANSAT',18,bold=True);maximum=float(insights.get('remaining_total',sum((r['tons'] for r,_,_ in clients)))) or 1;y=top+55
   for row,lines,h in clients:
    for j,line in enumerate(lines):text(x,y+(h-len(lines)*26)/2+j*26,line,18)
-   center=y+h/2;draw.rounded_rectangle((left+x+265,center-7,left+x+615,center+7),radius=5,fill=p['head'])
-   width=350*float(row['tons'])/maximum;draw.rounded_rectangle((left+x+265,center-7,left+x+265+max(2,width),center+7),radius=5,fill=row['darkColor'] if theme=='dark' else row['color'])
-   text(x+635,center-12,amount(row['tons'],2)+' t',20,bold=True);y+=h
+   center=y+h/2;draw.rounded_rectangle((left+x+265,center-7,left+x+535,center+7),radius=5,fill=p['head'])
+   width=270*min(1,float(row['tons'])/maximum);draw.rounded_rectangle((left+x+265,center-7,left+x+265+max(2,width),center+7),radius=5,fill=row['darkColor'] if theme=='dark' else row['color'])
+   text(x+550,center-12,amount(row['tons'],2)+' t',20,bold=True);text(x+675,center-10,amount(Decimal(str(100*float(row['tons'])/maximum)),2)+'%',16,p['muted']);y+=h
 
   draw.rounded_rectangle((left+x,y+10,left+x+755,y+62),radius=9,fill=p['blue'])
   text(x+16,y+26,'TOTAL REST DE PREDAT',18,bold=True)
   total=insights.get('remaining_total',sum((r['tons'] for r,_,_ in clients)))
-  text(x+635,y+23,amount(total,2)+' t',22,bold=True)
+  text(x+550,y+23,amount(total,2)+' t',22,bold=True)

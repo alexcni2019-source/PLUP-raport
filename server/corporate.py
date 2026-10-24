@@ -236,15 +236,15 @@ def weekend_image(report,theme="light"):
     values=[sum(day["values"][key] for day in days) for key in ("al","cu")]+[total["handed"]]+[sum(day["values"][key] for day in days) for key in ("backlogAl","backlogCu")]+[total["backlog"]]
     for j,value in enumerate(values,1):label(d,(xs[j]+12,y+16),amount(value,2)+" t",17,p["ink"],bold=True,width=170)
     label(d,(42,675),"PREDARE ȘI BACKLOG PE ZI",16,p["ink"],bold=True)
-    maximum=max([float(day[k]) for day in days for k in ("handed","backlog")]+[1])
+    totals_by_kind={k:sum(float(day[k]) for day in days) or 1 for k in ("handed","backlog")}
     for i,day in enumerate(days):
         x=42+i*480;label(d,(x,711),["Vineri","Sâmbătă","Duminică"][i],15,p["muted"])
         for offset,key,title,color in [(0,"handed","Predat",p["accent"]),(29,"backlog","Backlog",p["success"])]:
             y=739+offset;label(d,(x,y),title,12,p["muted"])
             d.rounded_rectangle((x+68,y,x+306,y+14),radius=5,fill=p["head"])
-            width=238*float(day[key])/maximum
+            width=238*float(day[key])/totals_by_kind[key]
             if width:d.rounded_rectangle((x+68,y,x+68+max(5,width),y+14),radius=5,fill=color)
-            label(d,(x+320,y-2),amount(day[key],2)+" t",14,p["ink"],bold=True,width=140)
+            label(d,(x+320,y-2),amount(day[key],2)+" t · "+amount(Decimal(str(100*float(day[key])/totals_by_kind[key])),1)+"%",14,p["ink"],bold=True,width=140)
     label(d,(42,817),"DEȘEU PE ZI · ALUMINIU ȘI CUPRU",17,p["ink"],bold=True)
     wx=[42,240,370,500,650,820,990]
     d.rectangle((42,854,990,896),fill=p["head"])
@@ -357,11 +357,11 @@ def production_image(report,page=0,theme="light"):
 
     d.rounded_rectangle((749,479,1449,795),radius=10,fill=p["stripe"],outline=p["line"])
     label(d,(772,495),"PREDARE ȘI BACKLOG",17,p["ink"],bold=True)
-    maximum=max(float(vals["al"]),float(vals["cu"]),1)
+    maximum=float(vals["al"]+vals["cu"]) or 1
     for y,name,value,bar in ((562,"Aluminiu",vals["al"],p["accent"]),
                               (647,"Cupru",vals["cu"],p["success"])):
         label(d,(772,y-27),name,15,p["muted"])
-        label(d,(1417,y-27),amount(value,2)+" t",16,p["ink"],bold=True,anchor="ra",width=180)
+        label(d,(1417,y-27),amount(value,2)+" t · "+amount(Decimal(str(100*float(value)/maximum)),1)+"%",16,p["ink"],bold=True,anchor="ra",width=230)
         d.rounded_rectangle((772,y,1419,y+24),radius=9,fill=p["head"])
         bar_width=round(647*float(value)/maximum)
         if bar_width:d.rounded_rectangle((772,y,772+max(9,bar_width),y+24),radius=9,fill=bar)
@@ -522,7 +522,7 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
         if known('km'):label(d,(x+20,229),amount(totals['km'],2)+' km',16,p['ink'])
 
     if clients:label(d,(left+30,summary_height+99),'DISTRIBUȚIA TONELOR PE CLIENȚI',18,p['ink'],bold=True)
-    maximum=max([float(row['tons']) for row in clients]+[1]);y=summary_height+134
+    maximum=sum(float(row['tons']) for row in clients) or 1;y=summary_height+134
     colors=[p['accent'],p['success'],'#ef9b50' if theme=='dark' else '#b76517','#8b84d5','#42a5ac']
     for i,(row,lines,h) in enumerate(zip(clients,client_lines,client_heights)):
         for j,line in enumerate(lines):label(d,(left+30,y+(h-24*len(lines))/2+j*24),line,16,p['ink'])

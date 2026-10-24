@@ -2,6 +2,9 @@
 from PIL import Image,ImageDraw
 from server.render import font,amount,png,wrapped
 from server.plan_clients import color
+from server.plan_visuals import COLORS
+def stage_color(label):
+ return dict(zip(['Funie / bară','Vane','Cablat','Manta intermediară','Armat','Manta finală'],COLORS.values())).get(label,{'KM planificați':'#56819b','KM predați':'#2d9668'}.get(label,'#b27c40'))
 
 def pages(insights):
  return [(None,[])] if insights.get('client_flow') else []
@@ -33,7 +36,7 @@ def image(plan,insights,theme,page=0):
    size=30
    while size>22 and d.textlength(g['client'],font=font(size,True))>690:size-=1
    d.text((x+24,y+22),g['client'],font=font(size,True),fill=p['ink'])
-   maximum=max((float(r['value']) for r in g['stages'] if r['unit']=='km'),default=0) or 1
+   maximum=sum(float(r['value']) for r in g['stages'] if r['unit']=='km') or 1
    for i,r in enumerate(g['stages']):
     ry=y+82+i*58;d.text((x+24,ry),r['label'],font=font(23),fill=p['ink'])
     value=amount(r['value'],2 if r['unit']=='t' else 3)+' '+r['unit']
@@ -41,7 +44,7 @@ def image(plan,insights,theme,page=0):
     d.text((x+card_width-24-d.textlength(value,font=font(24,True)),ry),value,font=font(24,True),fill=p['ink'])
     if r['unit']=='km':
      d.rounded_rectangle((x+24,ry+35,x+card_width-24,ry+42),3,fill=p['head']);length=(card_width-48)*float(r['value'])/maximum
-     if length:d.rounded_rectangle((x+24,ry+35,x+24+max(2,length),ry+42),3,fill=ink)
+     if length:d.rounded_rectangle((x+24,ry+35,x+24+max(2,length),ry+42),3,fill=stage_color(r['label']))
    if g.get('stockTons') is not None:
     ry=y+82+len(g['stages'])*58+8;value=amount(g['stockTons'],2)+' t'
     d.text((x+24,ry),'METAL ÎN SECȚIE',font=font(24,True),fill=p['ink'])

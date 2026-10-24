@@ -40,7 +40,7 @@
     $('total-waste').innerHTML=`${fmt(total.waste)} <small>t</small>`;
     $('total-processed').innerHTML=`${fmt(total.processed)} <small>t</small>`;
     $('total-percent').textContent=fmt(total.processed?total.waste/total.processed*100:0,1)+'%';
-    const al=ds.reduce((sum,date)=>sum+number(valuesFor(date).al),0),cu=ds.reduce((sum,date)=>sum+number(valuesFor(date).cu),0),max=Math.max(al,cu,1);
+    const al=ds.reduce((sum,date)=>sum+number(valuesFor(date).al),0),cu=ds.reduce((sum,date)=>sum+number(valuesFor(date).cu),0),max=al+cu||1;
     const percent=total.processed?Math.min(100,total.waste/total.processed*100):0;
     $('paper-donut').style.setProperty('--waste-angle',`${percent*3.6}deg`);
     $('paper-donut-percent').textContent=fmt(percent,1)+'%';
@@ -48,8 +48,8 @@
     $('paper-chart-processed').textContent=fmt(total.processed)+' t';
     $('paper-bar-al').style.width=`${al/max*100}%`;
     $('paper-bar-cu').style.width=`${cu/max*100}%`;
-    $('paper-bar-al-value').textContent=fmt(al)+' t';
-    $('paper-bar-cu-value').textContent=fmt(cu)+' t';
+    $('paper-bar-al-value').textContent=fmt(al)+' t · '+fmt(al/max*100,1)+'%';
+    $('paper-bar-cu-value').textContent=fmt(cu)+' t · '+fmt(cu/max*100,1)+'%';
     const backlogRatio=total.handed?total.backlog/total.handed*100:0;
     $('paper-bar-backlog').style.width=`${Math.min(100,backlogRatio)}%`;
     $('paper-bar-backlog-value').textContent=`${fmt(total.backlog)} t / ${fmt(total.handed)} t`;
