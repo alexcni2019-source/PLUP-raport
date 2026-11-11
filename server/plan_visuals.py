@@ -7,13 +7,13 @@ def stocks(insights):return [(k,label,insights['ton_stocks'][k]) for k,label in 
 def goods(insights):return next((r['current'] for r in insights['stages'] if r['key']=='goods'),None)
 def client_layout(draw,insights):
  return [(r,wrapped(draw,r['client'],18,245),max(58,26*len(wrapped(draw,r['client'],18,245))+16)) for r in insights.get('clients',[])]
-def height(insights,draw):
+def _height(insights,draw):
  flow=420 if stages(insights) else 48 if goods(insights) is not None or stocks(insights) else 0
  if stocks(insights):flow+=94
  if goods(insights) is not None:flow+=80
  return max(flow+20 if flow else 0,135+sum(h for _,_,h in client_layout(draw,insights)) if insights.get('clients') else 0)
 
-def draw(draw,left,top,insights,p,theme):
+def _draw(draw,left,top,insights,p,theme):
  def text(x,y,value,size=18,color=None,bold=False):draw.text((left+x,y),str(value),font=font(size,bold),fill=color or p['ink'])
  rows=stages(insights);handed=goods(insights);clients=client_layout(draw,insights);stock=stocks(insights)
  if rows or handed is not None:
@@ -53,3 +53,18 @@ def draw(draw,left,top,insights,p,theme):
   text(x+16,y+26,'TOTAL REST DE PREDAT',18,bold=True)
   total=insights.get('remaining_total',sum((r['tons'] for r,_,_ in clients)))
   text(x+550,y+23,amount(total,2)+' t',22,bold=True)
+
+def height(insights,draw):
+ groups=insights.get('by_material')
+ return sum(64+_height(group,draw) for group in groups.values())+(70 if len(groups)>1 and insights.get('remaining_total_manual') else 0) if groups else _height(insights,draw)
+
+def draw(draw,left,top,insights,p,theme):
+ groups=insights.get('by_material')
+ if not groups:return _draw(draw,left,top,insights,p,theme)
+ for material,group in groups.items():
+  title=('ALUMINIU · AL' if material=='AL' else 'CUPRU · CU')+' · STADII ȘI CLIENȚI'
+  draw.text((left+30,top+8),title,font=font(24,True),fill=p['accent'] if material=='AL' else ('#f0ae7b' if theme=='dark' else '#a65c2d'))
+  _draw(draw,left,top+64,group,p,theme)
+  top+=64+_height(group,draw)
+ if len(groups)>1 and insights.get('remaining_total_manual'):
+  draw.text((left+30,top+10),'TOTAL REST AL + CU (INTRODUS MANUAL): '+amount(insights['remaining_total'],2)+' t',font=font(23,True),fill=p['ink'])

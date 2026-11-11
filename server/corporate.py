@@ -494,7 +494,7 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
     clients,note=distribution(forecast)
     clients=[r for r in clients if not r.get("unknown")]
     measure=ImageDraw.Draw(Image.new('RGB',(1,1)))
-    client_lines=[wrapped(measure,row['client'],16,535) for row in clients]
+    client_lines=[wrapped(measure,row['material']+' · '+row['client'],16,535) for row in clients]
     client_heights=[max(46,18+24*len(lines)) for lines in client_lines]
     chart_height=64+sum(client_heights) if clients else 0
     from server.forecast_work import build
@@ -522,15 +522,16 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
         if known('km'):label(d,(x+20,229),amount(totals['km'],2)+' km',16,p['ink'])
 
     if clients:label(d,(left+30,summary_height+99),'DISTRIBUȚIA TONELOR PE CLIENȚI',18,p['ink'],bold=True)
-    maximum=sum(float(row['tons']) for row in clients) or 1;y=summary_height+134
+    material_totals={material:sum(float(row['tons']) for row in distribution(forecast)[0] if row['material']==material) for material in ('AL','CU')}
+    y=summary_height+134
     colors=[p['accent'],p['success'],'#ef9b50' if theme=='dark' else '#b76517','#8b84d5','#42a5ac']
     for i,(row,lines,h) in enumerate(zip(clients,client_lines,client_heights)):
         for j,line in enumerate(lines):label(d,(left+30,y+(h-24*len(lines))/2+j*24),line,16,p['ink'])
         center=y+h/2
         d.rounded_rectangle((left+595,center-8,left+1330,center+8),radius=6,fill=p['head'])
-        bar=735*float(row['tons'])/maximum
+        bar=735*float(row['tons'])/(material_totals[row['material']] or 1)
         d.rounded_rectangle((left+595,center-8,left+595+max(6,bar),center+8),radius=6,fill=colors[i%len(colors)])
-        label(d,(left+1350,center-11),amount(row['tons'],2)+' t · '+amount(row['percent'],1)+'%',17,p['ink'],bold=True,width=290)
+        label(d,(left+1350,center-11),amount(row['tons'],2)+' t · '+amount(row['materialPercent'],1)+'% '+row['material'],17,p['ink'],bold=True,width=290)
         y+=h
 
     if execution:image.paste(execution,(left,87+summary_height+chart_height))

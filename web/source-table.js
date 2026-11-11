@@ -38,11 +38,12 @@
     if(Number.isInteger(cols.date)&&base.date!==table.date){const previous=row[cols.date]||'';row[cols.date]=/^\d{1,2}[./]/.test(previous)?stamp.split('-').reverse().join(previous.includes('/')?'/':'.'):stamp;}
    }
   }else{
-   let group='AL';const materials=new Map();for(let ri=table.header+1;ri<table.rows.length;ri++){const token=String(table.rows[ri][Number.isInteger(cols.material)?cols.material:0]||'').trim().toUpperCase().replace(':','');if(['CU','CUPRU','COPPER'].includes(token))group='CU';if(['AL','ALUMINIU','ALUMINIUM'].includes(token))group='AL';materials.set(ri,group);}
+   const materials=window.PLUPMaterials.classify(table);
+   table.records.forEach(record=>{record.material=materials.get(record.row)||record.material;});
    base.rows=table.records.filter(rec=>table.rows[rec.row].some(v=>String(v).trim())).map(rec=>{
     const row=table.rows[rec.row];const mapped=Object.fromEntries(fields[type].filter(k=>k!=='material').map(k=>[k,Number.isInteger(cols[k])?convert(row[cols[k]],k):'']));
     const material=Number.isInteger(cols.material)?String(row[cols.material]||'').trim().toUpperCase().replace(':',''):'';
-    return {material:['CU','CUPRU','COPPER'].includes(material)?'CU':['AL','ALUMINIU','ALUMINIUM'].includes(material)?'AL':materials.get(rec.row)||rec.material,...mapped};
+    return {material:materials.get(rec.row)||rec.material,...mapped};
    });
   }
   if(base.date!==table.date){

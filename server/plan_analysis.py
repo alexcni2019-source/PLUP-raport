@@ -9,16 +9,18 @@ ZERO=Decimal('0')
 def identity(row):
  return tuple(re.sub(r'\s+',' ',str(row.get(k,'')).strip()).casefold() for k in ('material','client','product'))
 
-def entered(payload,key):
+def entered(payload,key,material=None):
  table=payload.get('sourceTable')
  if table:
   col=table['columns'].get(key)
-  return col is not None and any(str(table['rows'][r['row']][col] if col<len(table['rows'][r['row']]) else '').strip() not in ('','-','—') for r in table['records'])
- return any(str(r.get(key,'')).strip() not in ('','-','—') for r in payload['rows'])
+  return col is not None and any(str(table['rows'][r['row']][col] if col<len(table['rows'][r['row']]) else '').strip() not in ('','-','—') for r in table['records'] if material is None or r['material']==material)
+ return any(str(r.get(key,'')).strip() not in ('','-','—') for r in payload['rows'] if material is None or r['material']==material)
 
 def build(plan,payload,previous=None,previous_payload=None):
  from server.source_table import repair_fune
- payload=repair_fune(payload)
+ from server.materials import repair
+ payload=repair_fune(repair(payload))
+ if previous_payload is not None:previous_payload=repair(previous_payload)
  rows=plan['rows'];groups={}
  for material in ('AL','CU'):
   selected=[r for r in rows if r['material']==material]
@@ -41,6 +43,27 @@ def build(plan,payload,previous=None,previous_payload=None):
  from server.section_stock import adjust
  result['section_stock']=adjust(result['section_stock'],plan.get('stockAdjustments',{}),plan.get('stockNames',{}))
  result['flow_pages']=[{'client':'Toți clienții','page':0}] if pages(result) else []
+ # Keep combined totals for existing editors; visual analytics are explicitly per metal.
+ result['by_material']={}
+ for material in ('AL','CU'):
+  selected=[r for r in rows if r['material']==material]
+  if not selected:continue
+  leaf_clients=client_build(plan,payload,material)
+  leaf_flow=flow_build(plan,payload,material)
+  leaf_planned=sum((r['planned'] for r in selected),ZERO) if entered(payload,'planned',material) else None
+  leaf_handed=sum((r['handed'] for r in selected),ZERO) if entered(payload,'handed',material) else None
+  result['by_material'][material]={
+   'material':material,'label':'Aluminiu' if material=='AL' else 'Cupru',
+   'planned':leaf_planned,'handed':leaf_handed,
+   'percent':leaf_handed/leaf_planned*100 if leaf_planned and leaf_handed is not None else None,
+   'stages':[{'key':key,'label':label,'current':sum((r[key] for r in selected),ZERO) if entered(payload,key,material) else None} for key,label in STAGES],
+   'ton_stocks':{key:sum((r[key] for r in selected),ZERO) if entered(payload,key,material) else None for key in ('wire','spool')},
+   'clients':leaf_clients,'remaining_total':sum((r['tons'] for r in leaf_clients),ZERO),
+   'client_flow':leaf_flow,'section_stock':stock_build({'client_flow':leaf_flow},{})
+  }
+ result['remaining_total_manual']=plan.get('remainingTotalOverride') is not None
+ if len(result['by_material'])==1 and result['remaining_total_manual']:
+  next(iter(result['by_material'].values()))['remaining_total']=result['remaining_total']
  if previous is None:return result
  old=previous['rows'];nc=Counter(identity(r) for r in rows);oc=Counter(identity(r) for r in old)
  current={identity(r):r for r in rows if r['product'].strip() and nc[identity(r)]==1};prior={identity(r):r for r in old if r['product'].strip() and oc[identity(r)]==1}

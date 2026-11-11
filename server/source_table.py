@@ -39,6 +39,8 @@ def validate(table, mode):
 
 def split(payload):
  if not isinstance(payload,dict) or 'sourceTable' not in payload:return payload,None
+ from server.materials import repair
+ payload=repair(payload)
  payload=repair_fune(payload)
  table=validate(payload['sourceTable'],payload.get('mode'))
  return {k:v for k,v in payload.items() if k!='sourceTable'},table

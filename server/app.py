@@ -121,7 +121,7 @@ def process_plan(data: object) -> dict:
     remaining_total_raw=data.get('remainingTotalOverride','') if isinstance(data,dict) else ''
     remaining_total_override=read_amount(remaining_total_raw,'Total rest de predat') if str(remaining_total_raw).strip() else None
     remaining_edits=data.get('remainingOverrides',{}) if isinstance(data,dict) else {}
-    if not isinstance(remaining_edits,dict) or len(remaining_edits)>100 or any(not isinstance(k,str) or len(k)>120 for k in remaining_edits):raise InvalidReport('Rest de predat invalid.')
+    if not isinstance(remaining_edits,dict) or len(remaining_edits)>100 or any(not isinstance(k,str) or len(k)>(124 if k.startswith(('AL::','CU::')) else 120) for k in remaining_edits):raise InvalidReport('Rest de predat invalid.')
     remaining_overrides={k:read_amount(v,'Rest de predat '+k) for k,v in remaining_edits.items()}
     stock_names=data.get('stockNames',{}) if isinstance(data,dict) else {}
     if not isinstance(stock_names,dict) or len(stock_names)>120 or any(not isinstance(k,str) or not isinstance(v,str) or not v.strip() or len(k)>150 or len(v)>120 or any(ord(c)<32 for c in v) for k,v in stock_names.items()):raise InvalidReport('Nume client invalid.')

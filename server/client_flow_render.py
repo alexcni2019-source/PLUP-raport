@@ -15,10 +15,17 @@ def image(plan,insights,theme,page=0):
  if page!=0:raise ValueError('Pagină invalidă.')
  p=DARK if theme=='dark' else LIGHT;groups=[]
  stock=insights.get('section_stock',{});lookup={r.get('sourceClient',r['client']):r for r in stock.get('clients',[])}
- for original in insights.get('client_flow',[]):
+ material_groups=insights.get('by_material',{})
+ originals=[{**group,'material':material} for material,leaf in material_groups.items() for group in leaf['client_flow']] if material_groups else insights.get('client_flow',[])
+ memberships={name:sum(g['client']==name for g in originals) for name in {g['client'] for g in originals}}
+ for original in originals:
   g={**original,'stages':[dict(r) for r in original['stages']]};entry=lookup.get(original['client'])
-  if entry:
+  if entry and memberships[original['client']]==1:
    g['client']=entry['client'];g['stockTons']=entry['tons']
+  elif g.get('material'):
+   leaf=material_groups[g['material']]
+   entry=next((r for r in leaf['section_stock']['clients'] if r['client']==original['client']),None)
+   if entry:g['stockTons']=entry['tons']
   groups.append(g)
  columns=3;width=2400;card_width=750;row_heights=[]
  for i in range(0,len(groups),columns):
@@ -36,6 +43,8 @@ def image(plan,insights,theme,page=0):
    size=30
    while size>22 and d.textlength(g['client'],font=font(size,True))>690:size-=1
    d.text((x+24,y+22),g['client'],font=font(size,True),fill=p['ink'])
+   if g.get('material'):
+    d.text((x+24,y+57),'ALUMINIU · AL' if g['material']=='AL' else 'CUPRU · CU',font=font(17,True),fill=p['accent'] if g['material']=='AL' else ('#f0ae7b' if theme=='dark' else '#a65c2d'))
    maximum=sum(float(r['value']) for r in g['stages'] if r['unit']=='km') or 1
    for i,r in enumerate(g['stages']):
     ry=y+82+i*58;d.text((x+24,ry),r['label'],font=font(23),fill=p['ink'])
