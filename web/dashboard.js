@@ -38,6 +38,7 @@
       const selected=button.dataset.view===view||(button.dataset.view==='weekday'&&view==='weekend');
       if(selected)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
     });
+    document.dispatchEvent(new CustomEvent('plup:view',{detail:view}));
     const restoreScroll=()=>requestAnimationFrame(()=>{
       if(revision!==viewRevision)return;
       if(focus&&previous!==view)focusView();

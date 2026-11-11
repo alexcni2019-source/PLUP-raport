@@ -5,4 +5,5 @@ upload/
 *.sqlite3*
 .env
 .venv/
+node_modules/
 PLUP_parola_acces.txt

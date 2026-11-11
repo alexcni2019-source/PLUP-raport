@@ -7,13 +7,26 @@
     if(target.closest('#forecast-view'))return 'forecast';
     if(target.closest('#report-view'))return window.PLUPReport?.payload().mode;
   }
-  document.addEventListener('input',event=>{if(event.target.matches('input[data-key],#report-date,#plan-date,#plan-week,#plan-incoming,#forecast-date')){const mode=modeFor(event.target);if(mode)dirty.add(mode);}});
-  document.addEventListener('click',event=>{if(event.target.closest('[data-remove],#add-al,#add-cu,#forecast-add-al,#forecast-add-cu,#undo-plan-row,#undo-forecast-row')){const mode=modeFor(event.target);if(mode)dirty.add(mode);}},true);
+  function markDirty(mode){
+    if(!mode)return;
+    dirty.add(mode);
+    document.dispatchEvent(new CustomEvent('plup:state',{detail:{mode}}));
+  }
+  document.addEventListener('input',event=>{
+    if(event.target.matches('input[data-key],#report-date,#plan-date,#plan-week,#plan-incoming,#forecast-date'))markDirty(modeFor(event.target));
+  });
+  document.addEventListener('change',event=>{
+    if(event.target.matches('input[name=mode],select[data-key],#forecast-show-status'))markDirty(modeFor(event.target));
+  });
+  document.addEventListener('click',event=>{
+    if(event.target.closest('[data-remove],#add-al,#add-cu,#forecast-add-al,#forecast-add-cu,#undo-plan-row,#undo-forecast-row'))markDirty(modeFor(event.target));
+  },true);
   function markClean(mode,submitted){
     if(submitted&&JSON.stringify(controller(mode)?.payload())!==JSON.stringify(submitted))return;
     dirty.delete(mode);
+    document.dispatchEvent(new CustomEvent('plup:state',{detail:{mode,saved:!!submitted}}));
   }
-  window.PLUPUI={clearImages(node){const urls=new Set([...node.querySelectorAll('img,a')].map(n=>n.src||n.href).filter(u=>u?.startsWith('blob:')));urls.forEach(u=>URL.revokeObjectURL(u));node.replaceChildren();},markClean,isDirty:mode=>dirty.has(mode),markDirty:mode=>dirty.add(mode),confirmReplace(mode){return !dirty.has(mode)||window.confirm('Ai modificări nesalvate în acest formular. Le înlocuiești cu un alt raport?');}};
+  window.PLUPUI={clearImages(node){const urls=new Set([...node.querySelectorAll('img,a')].map(n=>n.src||n.href).filter(u=>u?.startsWith('blob:')));urls.forEach(u=>URL.revokeObjectURL(u));node.replaceChildren();},markClean,isDirty:mode=>dirty.has(mode),markDirty,confirmReplace(mode){return !dirty.has(mode)||window.confirm('Ai modificări nesalvate în acest formular. Le înlocuiești cu un alt raport?');}};
   window.addEventListener('beforeunload',event=>{if(dirty.size){event.preventDefault();event.returnValue='';}});
   const observed=new WeakSet();
   function observeButtons(){
