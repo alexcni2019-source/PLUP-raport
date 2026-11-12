@@ -43,13 +43,20 @@ with TemporaryDirectory() as temporary:
             page.on('dialog', lambda dialog: dialog.accept())
             page.goto(f'http://127.0.0.1:{server.server_port}')
             page.wait_for_selector('.modern-shell')
+            for width in (390, 1440):
+                page.set_viewport_size({'width': width, 'height': 1000})
+                for mode, suffix in [('weekday', 'report'), ('plan', 'plan'), ('forecast', 'forecast')]:
+                    page.evaluate('(mode)=>PLUPDashboard.show(mode)', mode)
+                    expect(page.locator('#excel-paste-' + suffix)).to_be_visible()
+                    expect(page.locator('[data-read-table=' + suffix + ']')).to_be_visible()
+                    assert page.locator('#excel-paste-' + suffix).evaluate('(e)=>!e.closest("details")')
+                    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.evaluate("""() => {
               PLUPDashboard.show('plan');
               PLUPPlan.load({mode:'plan',date:'2026-11-12',week:'W46',incoming:'',
                 remainingOverrides:{'CU::CLIENT VECHI':'1.4'},remainingTotalOverride:'30.7',
                 rows:[{material:'CU',client:'CLIENT VECHI',product:'PRODUS VECHI',
                        planned:'3.99',cable:'9.2'}]},null);
-              document.querySelector('#plan-view .smart-excel').open=true;
             }""")
             actions = page.locator('.modern-actions')
             generate = actions.get_by_role('button', name='Generează PNG', exact=True)

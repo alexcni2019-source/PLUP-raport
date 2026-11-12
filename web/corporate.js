@@ -193,7 +193,7 @@
         analyze.addEventListener('click', () => {disclosure.open = true;});
       }
     });
-    document.querySelectorAll('.smart-excel').forEach(node => node.open = false);
+    // Excel paste is a primary input and stays visible beside image import.
     document.querySelectorAll('.smart-assistant details').forEach(node => node.open = false);
     const tabs = document.createElement('div'); tabs.id = 'production-days'; tabs.className = 'production-day-tabs'; tabs.setAttribute('aria-label','Ziua de editat');
     $('entry-list').before(tabs);
