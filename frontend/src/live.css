@@ -31,3 +31,8 @@ html,body{font-family:SourceSans3,system-ui,sans-serif;background:var(--backgrou
 :root[data-theme=dark] .working-views .metal-label.cu{color:#152b22}
 .working-views .image-result>a,
 :root[data-theme=dark] .working-views .image-result>a{background:var(--primary);color:var(--primary-foreground)}
+
+@media(max-width:760px){
+ .working-views .smart-excel>.plan-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:stretch}
+ .working-views .smart-excel>.plan-actions>button,.working-views .smart-excel>.plan-actions>.plan-file-button{width:100%;min-width:0;white-space:normal}
+}
