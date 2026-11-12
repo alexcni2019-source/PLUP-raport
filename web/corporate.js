@@ -268,7 +268,7 @@
     if (!event.target.closest('button,[data-view]') && event.type !== 'change') return;
     const bad = document.querySelector('input[aria-invalid="true"]');
     if (!bad) return;
-    if (event.type === 'click' && event.target.closest('[data-product-details],[data-production-day],#theme-toggle,#theme-system,.workspace-disclosure summary')) return;
+    if (event.type === 'click' && event.target.closest('[data-product-details],[data-production-day],#theme-toggle,#theme-system,[data-ui-safe],[data-slot="sheet-close"],.workspace-disclosure summary')) return;
     if (event.type === 'change' && !event.target.matches('input[name=mode],#report-date,#plan-date,#forecast-date')) return;
     if (event.type === 'change') {
       if (event.target.matches('input[name=mode]')) event.target.checked = event.target.value === window.PLUPReport.payload().mode;

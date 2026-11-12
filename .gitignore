@@ -6,4 +6,5 @@ upload/
 .env
 .venv/
 node_modules/
+.agents/skills/impeccable/
 PLUP_parola_acces.txt

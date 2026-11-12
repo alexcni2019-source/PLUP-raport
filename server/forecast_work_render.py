@@ -22,7 +22,7 @@ def work_image(entries,p,width=1672):
  image=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(image)
  d.text((30,10),'LISTA DE EXECUȚIE · SCHIMBUL 2',font=font(19,True),fill=p['ink']);y=55
  for entry,headline,body,h in layouts:
-  urgent=entry['priority']=='urgent';accent='#f0a58d' if p['bg']=='#151619' else '#b42318'
+  urgent=entry['priority']=='urgent';accent='#f0a58d' if p['bg']=='#141f1a' else '#b42318'
   d.rounded_rectangle((30,y,width-30,y+h),radius=10,fill=p['paper'],outline=p['line'])
   d.rectangle((30,y+9,34,y+h-9),fill=accent if urgent else p['accent'])
   for i,line in enumerate(headline):d.text((50,y+14+i*26),line,font=font(18,True),fill=p['ink'])

@@ -14,7 +14,8 @@ WHITE = "#f7fbff"
 
 @lru_cache(maxsize=64)
 def font(size, bold=False):
-    return ImageFont.truetype(str(ROOT / ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf")), size)
+    source=ASSETS / "fonts" / ("SourceSans3-700.ttf" if bold else "SourceSans3-400.ttf")
+    return ImageFont.truetype(str(source if source.is_file() else ROOT / ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf")), size)
 
 
 def text(draw, xy, value, size=16, color=WHITE, bold=False, anchor=None, width=None):

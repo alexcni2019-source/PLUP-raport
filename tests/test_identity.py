@@ -68,7 +68,7 @@ class IdentityTest(unittest.TestCase):
         try:
             for path in ('/api/reports','/api/smart/dashboard','/api/smart/drafts'):
                 self.assertEqual(request('GET',path)[0],401)
-            for path in ('/','/index.html','/app.js'):
+            for path in ('/','/index.html','/app.js','/modern/modern.js','/fonts/SourceSans3.ttf'):
                 status,body=request('GET',path)
                 self.assertEqual(status,200);self.assertIn(b'Continu',body)
                 self.assertNotIn(b'login-password',body)
@@ -77,6 +77,22 @@ class IdentityTest(unittest.TestCase):
             self.assertEqual(request('PUT','/api/reports/id')[0],401)
             identity.SESSIONS['synthetic']={'owner':'123','expires':time.time()+60}
             headers={'Cookie':'__Host-plup_identity=synthetic','Origin':'http://127.0.0.1:'+str(server.server_port)}
+            nonces=[]
+            for _ in range(2):
+                c=http.client.HTTPConnection('127.0.0.1',server.server_port)
+                c.request('GET','/',headers=headers)
+                response=c.getresponse();html=response.read().decode()
+                self.assertEqual(response.status,200)
+                nonce=html.split('name="plup-style-nonce" content="')[1].split('"')[0]
+                nonces.append(nonce)
+                policy=response.getheader('Content-Security-Policy')
+                self.assertIn("'nonce-"+nonce+"'",policy)
+                self.assertIn("script-src 'self'",policy)
+                self.assertNotIn("'unsafe-inline'",policy)
+                self.assertNotIn('__PLUP_STYLE_NONCE__',html)
+                self.assertEqual(int(response.getheader('Content-Length')),len(html.encode()))
+                c.close()
+            self.assertNotEqual(nonces[0],nonces[1])
             self.assertEqual(request('POST','/auth/logout',headers)[0],403)
             csrf=hmac.new(app.SESSION_SECRET.encode(),b'csrf:synthetic',hashlib.sha256).hexdigest()
             headers['X-CSRF-Token']=csrf

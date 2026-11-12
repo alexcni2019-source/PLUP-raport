@@ -10,16 +10,18 @@ from server.source_render import source_image, combined_image
 
 
 LIGHT = {
-    "bg":"#f5f5f7","paper":"#ffffff","ink":"#202329","muted":"#606673",
-    "line":"#e0e3e8","head":"#f0f2f5","stripe":"#f8f9fb","pill":"#edf0f5",
-    "blue":"#eaf2fd","green":"#eaf4ef","yellow":"#f2f3f6",
-    "accent":"#0969da","success":"#267d4c","success_bg":"#e7f3ed"
+    "bg":"#fffdf1","paper":"#fffef9","ink":"#1e342e","muted":"#53645a",
+    "line":"#d9e2d3","head":"#e8f5e8","stripe":"#f5f6ec","pill":"#e8f5e8",
+    "blue":"#e8f5ef","green":"#edf5df","yellow":"#f5f5d6",
+    "accent":"#006b65","success":"#147549","success_bg":"#dff0cb",
+    "al":"#255ab7","cu":"#b44c16","hero":"#006b65","hero_ink":"#fff9e9"
 }
 DARK = {
-    "bg":"#151619","paper":"#202125","ink":"#f1f3f7","muted":"#adb3bf",
-    "line":"#383b43","head":"#292b31","stripe":"#24262c","pill":"#30343d",
-    "blue":"#263950","green":"#263c32","yellow":"#303138",
-    "accent":"#80b9ff","success":"#80c6a0","success_bg":"#263c32"
+    "bg":"#141f1a","paper":"#1e2c24","ink":"#fff9e9","muted":"#c4d2be",
+    "line":"#425748","head":"#293b2e","stripe":"#223429","pill":"#293b2e",
+    "blue":"#243c32","green":"#293c28","yellow":"#353d26",
+    "accent":"#64dbc4","success":"#b6de83","success_bg":"#344b2a",
+    "al":"#9dbdff","cu":"#ffb277","hero":"#0a443d","hero_ink":"#fff9e9"
 }
 
 X = [30,69,193,384,516,622,701,780,874,966,1048,1149,1233,1325,1442,1644]
@@ -203,189 +205,13 @@ OPS_LABELS=["Asumat / Realizat (t) + %","Realizat vs status","Realizat vs plan",
 
 
 def weekend_image(report,theme="light"):
-    p=DARK if theme=="dark" else LIGHT
-    days=report["days"];total=report["total"]
-    stamp=date.fromisoformat(days[0]["date"]).strftime("%d.%m.%Y")+" – "+date.fromisoformat(days[-1]["date"]).strftime("%d.%m.%Y")
-    extras=days[-1]["extras"]
-    measure=ImageDraw.Draw(Image.new("RGB",(1,1)));indicators=[]
-    for name,key in list(zip(OPS_LABELS,OPS))+[("Observații","obs")]:
-        if not extras.get(key):continue
-        left=wrapped(measure,name,16,390);right=wrapped(measure,extras[key],16,890)
-        indicators.append((left,right,max(42,16+24*max(len(left),len(right)))))
-    height=max(1360,1243+sum(r[2] for r in indicators))
-    image=Image.new("RGB",(1491,height),p["bg"]);d=ImageDraw.Draw(image)
-    brand(d,1491,stamp,"RAPORT WEEKEND",p)
-    label(d,(42,115),"PRODUCȚIE · VINERI / SÂMBĂTĂ / DUMINICĂ",18,p["muted"],bold=True)
-    label(d,(42,151),stamp,30,p["ink"],bold=True)
-    for x,title,value in [(42,"TOTAL PREDAT AL + CU",total["handed"]),(754,"BACKLOG PREDAT CUMULAT",total["backlog"])]:
-        d.rounded_rectangle((x,212,x+695,334),radius=12,fill=p["blue"],outline=p["line"])
-        label(d,(x+22,231),title,16,p["muted"],bold=True)
-        label(d,(x+22,269),amount(value,2)+" t",34,p["ink"],bold=True)
-    xs=[42,279,474,669,864,1059,1254,1449]
-    headers=["ZI / DATA","PREDAT AL","PREDAT CU","TOTAL PREDAT","BACKLOG AL","BACKLOG CU","TOTAL BACKLOG"]
-    d.rectangle((42,359,1449,407),fill=p["head"])
-    for i,h in enumerate(headers):label(d,(xs[i]+12,375),h,13,p["muted"],bold=True)
-    for i,day in enumerate(days):
-        y=407+i*63;v=day["values"]
-        d.rectangle((42,y,1449,y+63),fill=p["paper"] if i%2==0 else p["stripe"])
-        label(d,(54,y+12),["Vineri","Sâmbătă","Duminică"][i],16,p["ink"],bold=True)
-        label(d,(54,y+35),date.fromisoformat(day["date"]).strftime("%d.%m.%Y"),13,p["muted"])
-        values=[v["al"],v["cu"],day["handed"],v["backlogAl"],v["backlogCu"],day["backlog"]]
-        for j,value in enumerate(values,1):label(d,(xs[j]+12,y+21),amount(value,2)+" t",17,p["ink"],bold=j in (3,6),width=170)
-    y=596;d.rectangle((42,y,1449,y+50),fill=p["blue"]);label(d,(54,y+16),"TOTAL WEEKEND",16,p["ink"],bold=True)
-    values=[sum(day["values"][key] for day in days) for key in ("al","cu")]+[total["handed"]]+[sum(day["values"][key] for day in days) for key in ("backlogAl","backlogCu")]+[total["backlog"]]
-    for j,value in enumerate(values,1):label(d,(xs[j]+12,y+16),amount(value,2)+" t",17,p["ink"],bold=True,width=170)
-    label(d,(42,675),"PREDARE ȘI BACKLOG PE ZI",16,p["ink"],bold=True)
-    totals_by_kind={k:sum(float(day[k]) for day in days) or 1 for k in ("handed","backlog")}
-    for i,day in enumerate(days):
-        x=42+i*480;label(d,(x,711),["Vineri","Sâmbătă","Duminică"][i],15,p["muted"])
-        for offset,key,title,color in [(0,"handed","Predat",p["accent"]),(29,"backlog","Backlog",p["success"])]:
-            y=739+offset;label(d,(x,y),title,12,p["muted"])
-            d.rounded_rectangle((x+68,y,x+306,y+14),radius=5,fill=p["head"])
-            width=238*float(day[key])/totals_by_kind[key]
-            if width:d.rounded_rectangle((x+68,y,x+68+max(5,width),y+14),radius=5,fill=color)
-            label(d,(x+320,y-2),amount(day[key],2)+" t · "+amount(Decimal(str(100*float(day[key])/totals_by_kind[key])),1)+"%",14,p["ink"],bold=True,width=140)
-    label(d,(42,817),"DEȘEU PE ZI · ALUMINIU ȘI CUPRU",17,p["ink"],bold=True)
-    wx=[42,240,370,500,650,820,990]
-    d.rectangle((42,854,990,896),fill=p["head"])
-    for i,h in enumerate(["ZI","DEȘEU AL","DEȘEU CU","TOTAL DEȘEU","PROCESAT","DEȘEU %"]):label(d,(wx[i]+10,868),h,12,p["muted"],bold=True)
-    for i,day in enumerate(days):
-        y=896+i*46;v=day["values"]
-        d.rectangle((42,y,990,y+46),fill=p["paper"] if i%2==0 else p["stripe"])
-        values=[["Vineri","Sâmbătă","Duminică"][i],amount(v["wasteAl"],2)+" t",amount(v["wasteCu"],2)+" t",amount(day["waste"],2)+" t",amount(day["processed"],2)+" t",amount(day["percent"],1)+"%"]
-        for j,val in enumerate(values):label(d,(wx[j]+10,y+14),val,15,p["ink"],bold=j==3,width=wx[j+1]-wx[j]-20)
-    y=1034;d.rectangle((42,y,990,y+46),fill=p["green"])
-    values=["TOTAL WEEKEND",amount(sum(day["values"]["wasteAl"] for day in days),2)+" t",amount(sum(day["values"]["wasteCu"] for day in days),2)+" t",amount(total["waste"],2)+" t",amount(total["processed"],2)+" t",amount(total["percent"],1)+"%"]
-    for j,val in enumerate(values):label(d,(wx[j]+10,y+14),val,15,p["ink"],bold=True,width=wx[j+1]-wx[j]-20)
-    ring=(1080,862,1260,1042)
-    d.arc(ring,0,359,fill=p["line"],width=22)
-    share=max(0,min(100,float(total["percent"])))
-    if share:d.arc(ring,-90,-90+max(2,round(3.6*share)),fill=p["success"],width=22)
-    label(d,(1170,940),amount(total["percent"],1)+"%",28,p["ink"],bold=True,anchor="mm")
-    label(d,(1170,973),"deșeu / procesat",13,p["muted"],anchor="mm")
-    label(d,(1170,1062),"Procent cumulat weekend",13,p["muted"],anchor="mm")
-    y=1140
-    label(d,(42,y),"INDICATORI OPERAȚIONALI · DUMINICĂ",17,p["ink"],bold=True)
-    y+=37
-
-    for i,(left,right,h) in enumerate(indicators):
-        d.rectangle((42,y,1449,y+h),fill=p["paper"] if i%2==0 else p["stripe"])
-        for j,line in enumerate(left):label(d,(54,y+9+24*j),line,16,p["ink"])
-        for j,line in enumerate(right):label(d,(550,y+9+24*j),line,16,p["ink"])
-        y+=h
-    label(d,(42,height-34),"NRG Cables · PLUP Department",13,p["muted"])
-    return png(image)
+    from server.signature_render import production_image as signature_production
+    return signature_production(report,0,theme)
 
 
 def production_image(report,page=0,theme="light"):
-    if report["mode"]=="weekend":
-        if page != 0:raise ValueError("Raportul de weekend are o singură pagină.")
-        return weekend_image(report,theme)
-    days=report["days"]
-    if page<0 or page>(len(days) if len(days)>1 else 0):raise ValueError("Pagină invalidă")
-    total=len(days)>1 and page==len(days)
-    r=report["total"] if total else days[page]
-    vals={key:sum(day["values"][key] for day in days) if total else r["values"][key]
-          for key in ("al","cu","backlogAl","backlogCu","wasteAl","wasteCu")}
-    extras={} if total else r["extras"]
-    stamp=(date.fromisoformat(days[0]["date"]).strftime("%d.%m.%Y")+" – "+date.fromisoformat(days[-1]["date"]).strftime("%d.%m.%Y")) if total else date.fromisoformat(r["date"]).strftime("%d.%m.%Y")
-    p=DARK if theme=="dark" else LIGHT
-    if report.get("sourceTable") and not any(k in report["sourceTable"]["columns"] for k in ("al","cu","backlogAl","backlogCu","wasteAl","wasteCu")):
-        return png(source_image(report,p,stamp=stamp))
-    measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
-    indicators=[]
-    for name,key in zip(OPS_LABELS,OPS):
-        if not extras.get(key):continue
-        left=wrapped(measure,name,15,390)
-        right=wrapped(measure,extras[key],15,890)
-        indicators.append((left,right,max(38,13+22*max(len(left),len(right)))))
-    if extras.get("obs"):
-        indicators.append((['Observații'],wrapped(measure,extras['obs'],15,890),max(38,13+22*len(wrapped(measure,extras['obs'],15,890)))))
-    table_height=sum(x[2] for x in indicators)
-    table_start=815
-    bottom=table_start+51+table_height if indicators else 0
-    height=max(970,bottom+72)
-    image=Image.new("RGB",(1491,height),p["bg"])
-    d=ImageDraw.Draw(image)
-    brand(d,1491,stamp,"RAPORT",p)
-    d.rounded_rectangle((16,89,1475,height-25),radius=14,fill=p["paper"],outline=p["line"])
-    label(d,(42,113),"RAPORT DE PRODUCȚIE" if not total else "TOTAL WEEKEND",19,p["muted"],bold=True)
-    label(d,(42,145),stamp,31,p["ink"],bold=True)
-    d.line((42,196,1449,196),fill=p["line"],width=2)
-
-    def metric_card(box,title,short,handed,backlog,fill):
-        x1,y1,x2,y2=box
-        d.rounded_rectangle(box,radius=12,fill=fill,outline=p["line"])
-        label(d,(x1+24,y1+16),short,25,p["accent"],bold=True)
-        label(d,(x1+75,y1+20),title,22,p["ink"],bold=True)
-        label(d,(x1+26,y1+65),"Predat",14,p["muted"])
-        label(d,(x1+26,y1+89),amount(handed,2)+" t",31,p["ink"],bold=True,width=250)
-        d.line((x1+329,y1+63,x1+329,y2-18),fill=p["line"])
-        label(d,(x1+353,y1+65),"Backlog",14,p["muted"])
-        label(d,(x1+353,y1+89),amount(backlog,2)+" t",31,p["ink"],bold=True,width=x2-x1-378)
-
-    metric_card((42,216,731,363),"Aluminiu","AL",vals["al"],vals["backlogAl"],p["head"])
-    metric_card((749,216,1449,363),"Cupru","CU",vals["cu"],vals["backlogCu"],p["stripe"])
-    d.rounded_rectangle((42,381,1449,461),radius=10,fill=p["blue"])
-    for x,title,value in ((64,"TOTAL PREDAT AL + CU",r["handed"]),(544,"BACKLOG PREDAT",r["backlog"]),(1041,"TOTAL PROCESAT",r["processed"])):
-        label(d,(x,393),title,13,p["muted"],bold=True)
-        label(d,(x,416),amount(value,2)+" t",27,p["ink"],bold=True,width=320)
-    # Restore the report's visual summaries: a real waste ratio and AL/CU bars.
-    d.rounded_rectangle((42,479,731,795),radius=10,fill=p["green"],outline=p["line"])
-    label(d,(65,495),"DEȘEU · MATERIAL PROCESAT",17,p["ink"],bold=True)
-    label(d,(65,546),"Aluminiu",14,p["muted"])
-    label(d,(65,571),amount(vals["wasteAl"],2)+" t",22,p["ink"],bold=True,width=170)
-    label(d,(65,613),"Cupru",14,p["muted"])
-    label(d,(65,638),amount(vals["wasteCu"],2)+" t",22,p["ink"],bold=True,width=170)
-    d.line((246,532,246,695),fill=p["line"],width=2)
-    ring=(338,525,520,707)
-    ring_base="#e3e8f0" if theme=="light" else "#3b424e"
-    ring_value=p["success"]
-    d.arc(ring,0,359,fill=ring_base,width=26)
-    share=max(0,min(100,float(r["percent"])))
-    if share:d.arc(ring,-90,-90+max(2,round(3.6*share)),fill=ring_value,width=26)
-    label(d,(429,589),amount(r["percent"],1)+"%",28,p["ink"],bold=True,anchor="mm",width=146)
-    label(d,(429,619),"procent deșeu",13,p["muted"],anchor="mm")
-    label(d,(552,554),"Total deșeu",14,p["muted"])
-    label(d,(552,579),amount(r["waste"],2)+" t",20,p["ink"],bold=True,width=150)
-    label(d,(552,624),"Total procesat",14,p["muted"])
-    label(d,(552,649),amount(r["processed"],2)+" t",20,p["ink"],bold=True,width=150)
-    ratio=float(r["backlog"])/float(r["handed"])*100 if r["handed"] else 0
-    d.line((64,724,709,724),fill=p["line"])
-    label(d,(65,739),"Backlog / total predat",14,p["muted"])
-    label(d,(552,736),(amount(Decimal(str(ratio)),1)+"%") if r["handed"] else "—",22,p["ink"],bold=True,width=155)
-
-    d.rounded_rectangle((749,479,1449,795),radius=10,fill=p["stripe"],outline=p["line"])
-    label(d,(772,495),"PREDARE ȘI BACKLOG",17,p["ink"],bold=True)
-    maximum=float(vals["al"]+vals["cu"]) or 1
-    for y,name,value,bar in ((562,"Aluminiu",vals["al"],p["accent"]),
-                              (647,"Cupru",vals["cu"],p["success"])):
-        label(d,(772,y-27),name,15,p["muted"])
-        label(d,(1417,y-27),amount(value,2)+" t · "+amount(Decimal(str(100*float(value)/maximum)),1)+"%",16,p["ink"],bold=True,anchor="ra",width=230)
-        d.rounded_rectangle((772,y,1419,y+24),radius=9,fill=p["head"])
-        bar_width=round(647*float(value)/maximum)
-        if bar_width:d.rounded_rectangle((772,y,772+max(9,bar_width),y+24),radius=9,fill=bar)
-    label(d,(772,705),"Backlog / total predat",15,p["muted"])
-    label(d,(1417,705),f'{amount(r["backlog"],2)} t / {amount(r["handed"],2)} t',16,p["ink"],bold=True,anchor="ra",width=360)
-    d.rounded_rectangle((772,735,1419,759),radius=9,fill=p["head"])
-    width=round(647*min(1,ratio/100))
-    if width:d.rounded_rectangle((772,735,772+max(9,width),759),radius=9,fill=p["accent"])
-    if r['handed']:label(d,(772,765),f'{amount(Decimal(str(ratio)),1)}%',12,p['muted'])
-    if indicators:
-        d.rounded_rectangle((42,table_start,1449,bottom),radius=10,fill=p["paper"],outline=p["line"])
-        d.rectangle((43,table_start+1,1448,table_start+51),fill=p["head"])
-        label(d,(60,table_start+15),"INDICATORI OPERAȚIONALI",16,p["ink"],bold=True)
-        label(d,(565,table_start+15),"VALOARE",16,p["ink"],bold=True)
-        yy=table_start+51
-        for i,(left,right,row_height) in enumerate(indicators):
-            if i%2:d.rectangle((43,yy,1448,yy+row_height),fill=p["stripe"])
-            for j,line in enumerate(left):label(d,(60,yy+8+j*22),line,15,p["ink"])
-            for j,line in enumerate(right):label(d,(565,yy+8+j*22),line,15,p["ink"])
-            yy+=row_height
-            d.line((43,yy,1448,yy),fill=p["line"])
-        d.line((545,table_start+51,545,bottom),fill=p["line"])
-    label(d,(43,height-53),"NRG Cables   |   PLUP Department",13,p["muted"])
-    return combined_image(image,report,p,stamp) if report.get("sourceTable") else png(image)
+    from server.signature_render import production_image as signature_production
+    return signature_production(report,page,theme)
 
 
 def _forecast_table_image(forecast,theme="light",show_status=True):

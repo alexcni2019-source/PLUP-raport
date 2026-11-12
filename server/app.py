@@ -37,7 +37,7 @@ DB_PATH = Path(os.environ.get("PLUP_DB_PATH", str(ROOT / "data" / "plup.sqlite3"
 PASSWORD = os.environ.get("PLUP_PASSWORD", "")
 SESSION_SECRET = os.environ.get("PLUP_SESSION_SECRET", "")
 LOGIN_FAILURES = {}
-MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".ico": "image/x-icon"}
+MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".ico": "image/x-icon", ".ttf": "font/ttf"}
 SECURITY = {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -322,10 +322,15 @@ class Handler(BaseHTTPRequestHandler):
     sys_version = ""
 
     def respond(self,status:int,body:bytes,mime:str,headers=None):
+        policy=SECURITY
+        if mime.startswith("text/html") and b"__PLUP_STYLE_NONCE__" in body:
+            nonce=uuid.uuid4().hex
+            body=body.replace(b"__PLUP_STYLE_NONCE__",nonce.encode())
+            policy={**SECURITY,"Content-Security-Policy":SECURITY["Content-Security-Policy"].replace("style-src 'self'",f"style-src 'self' 'nonce-{nonce}'")}
         self.send_response(status)
         self.send_header("Content-Type",mime)
         self.send_header("Content-Length",str(len(body)))
-        for key,value in SECURITY.items():self.send_header(key,value)
+        for key,value in policy.items():self.send_header(key,value)
         if identity.enabled():self.send_header('Strict-Transport-Security','max-age=31536000')
         for key,value in (headers or {}).items():self.send_header(key,value)
         self.end_headers()

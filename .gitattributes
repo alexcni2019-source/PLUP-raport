@@ -1,0 +1,2 @@
+# Preserve upstream-generated bundles; review readable source in frontend/.
+web/modern/* -whitespace
