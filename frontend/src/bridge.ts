@@ -8,6 +8,7 @@ declare global {
     PLUPPlan:Controller
     PLUPForecast:Controller
     PLUPTheme:{current:()=>string}
+    PLUPTables?:{pending:(mode:string)=>boolean}
   }
 }
 export const byId=(id:string)=>document.getElementById(id)
@@ -19,10 +20,11 @@ export const controller=(view:View)=>view==='plan'?window.PLUPPlan:view==='forec
 export const actions=(view:View)=>view==='plan'?{save:'save-plan',render:'image-plan',status:'plan-status'}:view==='forecast'?{save:'forecast-save',render:'forecast-image',status:'forecast-status'}:{save:'save-report-button',render:'generate-report-image',status:'api-status'}
 export function snapshot(){
   const view=window.PLUPDashboard.current(),payload=controller(view)?.payload(),ids=actions(view)
+  const pendingImport=window.PLUPTables?.pending(view)||false
   const invalid=!!document.querySelector('input[aria-invalid="true"]')
   const save=byId(ids.save) as HTMLButtonElement|null,render=byId(ids.render) as HTMLButtonElement|null
   const dirty=byId('workspace-state-'+(view==='plan'?'plan':view==='forecast'?'forecast':'report'))?.textContent||''
-  return {view,payload,invalid,theme:window.PLUPTheme.current(),saveBusy:!!save?.disabled,renderBusy:!!render?.disabled,status:byId(ids.status)?.textContent||dirty}
+  return {view,payload,invalid,pendingImport,theme:window.PLUPTheme.current(),saveBusy:!!save?.disabled,renderBusy:!!render?.disabled,status:pendingImport?'Tabel nou în așteptare. Verifică asocierile și apasă „Aplică tabelul” înainte de salvare sau generare.':byId(ids.status)?.textContent||dirty}
 }
 export function totals(payload:Payload|undefined){
   if(!payload)return {al:0,cu:0,handed:0,backlog:0,waste:0,processed:0,percent:0}

@@ -72,7 +72,7 @@
       for(const i of order){
         const response=await window.PLUPFetch(`/api/render?page=${i}&theme=${theme}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot),credentials:'same-origin'});
         if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||'Generarea nu este disponibilă.');}
-        const blob=await response.blob();if(revision!==identityRevision)return;if(JSON.stringify(payload())!==JSON.stringify(snapshot)){window.PLUPUI.clearImages(gallery);throw Error('Datele au fost schimbate în timpul generării. Generează din nou imaginile.');}if(blob.type!=='image/png')throw Error('Răspuns imagine invalid.');
+        const blob=await response.blob();window.PLUPTables?.assertApplied(snapshot.mode);if(revision!==identityRevision)return;if(JSON.stringify(payload())!==JSON.stringify(snapshot)){window.PLUPUI.clearImages(gallery);throw Error('Datele au fost schimbate în timpul generării. Generează din nou imaginile.');}if(blob.type!=='image/png')throw Error('Răspuns imagine invalid.');
         const url=URL.createObjectURL(blob),item=document.createElement('div'),title=document.createElement('strong'),img=document.createElement('img'),link=document.createElement('a');
         item.className='image-result';title.textContent=`${labels[i]} · ${snapshot.mode==='weekend'?labelDate(reportDates[0])+' – '+labelDate(reportDates[2]):labelDate(reportDates[i])}`;img.src=url;img.alt=`Previzualizare ${labels[i]} PLUP`;link.href=url;link.download=`NRG_PLUP_${snapshot.date}${snapshot.mode==='weekend'?'_weekend':''}_${theme}.png`;link.textContent='Descarcă PNG ↓';item.append(title,img,link);gallery.append(item);
       }

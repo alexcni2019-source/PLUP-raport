@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   window.PLUPSplitExport=async ({payload,current,valid,theme,showStatus=true,target})=>{
+    window.PLUPTables?.assertApplied(payload.mode);
     const snapshot=JSON.stringify(payload),parts=payload.mode==='forecast'
       ?[['summary','Execuție și diagrame'],['table','Lista de previz']]
       :[['summary','Analiză și diagrame'],['table','Lista produselor']];
@@ -11,9 +12,11 @@
     }
     const blobs=[];
     for(const [section,title,page=0] of parts){
+      window.PLUPTables?.assertApplied(payload.mode);
       const response=await window.PLUPFetch(`/api/render?theme=${theme}&status=${showStatus?'1':'0'}&section=${section}&page=${page}`,{method:'POST',headers:{'Content-Type':'application/json'},body:snapshot,credentials:'same-origin'});
       if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||'Generarea nu a reușit.');}
       const blob=await response.blob();
+      window.PLUPTables?.assertApplied(payload.mode);
       if(!valid())return false;
       if(JSON.stringify(current())!==snapshot)throw Error('Datele au fost schimbate în timpul generării. Generează din nou imaginile.');
       if(blob.type!=='image/png')throw Error('Răspuns imagine invalid.');

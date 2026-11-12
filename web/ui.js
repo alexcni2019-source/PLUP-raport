@@ -10,6 +10,8 @@
   function markDirty(mode){
     if(!mode)return;
     dirty.add(mode);
+    const gallery=document.getElementById(['weekday','weekend'].includes(mode)?'report-images':mode+'-images');
+    if(gallery?.childElementCount)window.PLUPUI.clearImages(gallery);
     document.dispatchEvent(new CustomEvent('plup:state',{detail:{mode}}));
   }
   document.addEventListener('input',event=>{
