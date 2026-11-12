@@ -223,8 +223,9 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
     keys=["product","km","tons","client","measure"]+(["status"] if show_status else [])+["notes"]
     headers={"product":"PRODUS","km":"KM","tons":"TONE","client":"CLIENT",
              "measure":"MĂSURĂRI","status":"STADIU","notes":"OBSERVAȚII"}
-    al=[row for row in forecast["rows"] if row["material"]=="AL"]
-    cu=[row for row in forecast["rows"] if row["material"]=="CU"]
+    from server.forecast_order import products
+    al=products([row for row in forecast["rows"] if row["material"]=="AL"])
+    cu=products([row for row in forecast["rows"] if row["material"]=="CU"])
     measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
     def layout(row):
         wraps={}

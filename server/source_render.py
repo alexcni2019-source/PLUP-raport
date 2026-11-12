@@ -13,7 +13,11 @@ class SourceRenderError(ValueError):
 
 def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  from server.corporate import brand
- table=report['sourceTable'];rows=table['rows'];header=table['header'];width=max(map(len,rows));p=palette
+ table=report['sourceTable'];rows=table['rows'];header=table['header'];p=palette
+ if report['mode']=='forecast':
+  from server.forecast_order import source_rows
+  rows=source_rows(table)
+ width=max(map(len,rows))
  hidden=set()
  if report['mode']=='forecast' and not show_status:
   if 'status' in table['columns']:hidden.add(table['columns']['status'])
