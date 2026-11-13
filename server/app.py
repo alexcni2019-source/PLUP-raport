@@ -16,7 +16,7 @@ import hmac
 import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
-from server import smart, table_import, identity
+from server import smart, table_import, identity, members
 from server.corporate import plan_image, production_image, forecast_image
 from server import source_table, plan_analysis, forecast_work
 from server.source_render import SourceRenderError
@@ -225,15 +225,16 @@ def database():
     conn.execute("CREATE TABLE IF NOT EXISTS report_defaults (mode TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     conn.execute("CREATE TABLE IF NOT EXISTS plan_snapshots (report_date TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     smart.bootstrap(conn)
+    members.bootstrap(conn)
     return conn
 
 
-def plan_insights(report,payload):
+def plan_insights(report,payload,production_access=True):
     conn=database()
     try:
         previous,old=plan_analysis.previous(conn,report["date"],process_plan)
         result=plan_analysis.build(report,payload,previous,old)
-        if report.get('inventory'):
+        if report.get('inventory') and production_access:
             stamp=report['inventory']['date'];context=[]
             for row in conn.execute("SELECT id,payload FROM reports WHERE mode IN ('weekday','weekend') AND report_date<=? AND report_date>=date(?,'-2 days') ORDER BY created_at DESC LIMIT 30",(stamp,stamp)):
                 try:production=validate_report(json.loads(row['payload']))
@@ -246,10 +247,12 @@ def plan_insights(report,payload):
     finally:conn.close()
 
 
-def remember_generated(payload):
+def remember_generated(payload,actor='owner'):
     conn=database()
     try:
         with conn:
+            conn.execute('BEGIN IMMEDIATE')
+            if not members.can_write(conn,actor,payload['mode']):return
             conn.execute("INSERT INTO report_defaults(mode,payload) VALUES (?,?) ON CONFLICT(mode) DO UPDATE SET payload=excluded.payload",
                          (payload["mode"],json.dumps(payload,ensure_ascii=False)))
             if payload['mode']=='plan':
@@ -269,16 +272,20 @@ def latest_template(mode):
     finally:conn.close()
 
 
-def save_report(payload):
+def save_report(payload,actor='owner'):
     if not isinstance(payload,dict): raise InvalidReport("Raport invalid.")
     item=process_plan(payload) if payload.get("mode")=="plan" else process_forecast(payload) if payload.get("mode")=="forecast" else process(payload)
     record={"id":str(uuid.uuid4()),"mode":item["mode"],"date":item["date"],"created_at":datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")}
     conn=database()
     try:
         with conn:
+            conn.execute('BEGIN IMMEDIATE')
+            if not members.can_write(conn,actor,item['mode']):raise InvalidReport('Accesul de editare nu mai este disponibil.')
             conn.execute("INSERT INTO reports (id,mode,report_date,created_at,payload) VALUES (?,?,?,?,?)",(record["id"],record["mode"],record["date"],record["created_at"],json.dumps(payload,ensure_ascii=False)))
             record["version"]=smart.revision(conn,record["id"],payload,"create")
-            conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
+            if actor=='owner':conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
+            else:conn.execute("DELETE FROM member_drafts WHERE member_id=? AND mode=?",(actor,item["mode"]))
+            members.event(conn,actor,'report-create',record['id'],{'mode':item['mode'],'version':record['version']})
     finally:conn.close()
     return record
 
@@ -287,20 +294,23 @@ def validate_report(payload):
     return process_plan(payload) if isinstance(payload,dict) and payload.get("mode")=="plan" else process_forecast(payload) if isinstance(payload,dict) and payload.get("mode")=="forecast" else process(payload)
 
 
-def update_report(identifier, payload, expected=None, action="edit"):
+def update_report(identifier, payload, expected=None, action="edit", actor="owner"):
     item=validate_report(payload)
     conn=database()
     try:
         with conn:
             conn.execute("BEGIN IMMEDIATE")
-            previous=conn.execute("SELECT payload FROM reports WHERE id=?",(identifier,)).fetchone()
+            previous=conn.execute("SELECT payload,mode FROM reports WHERE id=?",(identifier,)).fetchone()
             if not previous:raise InvalidReport("Raportul din istoric nu există.")
+            if not members.can_write(conn,actor,previous['mode']) or not members.can_write(conn,actor,item['mode']):raise InvalidReport('Accesul de editare nu mai este disponibil.')
             current=smart.latest_version(conn,identifier)
             if expected is not None and int(expected)!=current:raise InvalidReport("Raportul a fost modificat între timp. Redeschide-l din istoric înainte de salvare.")
             if not current:smart.revision(conn,identifier,json.loads(previous["payload"]),"baseline")
             conn.execute("UPDATE reports SET mode=?,report_date=?,payload=? WHERE id=?",(item["mode"],item["date"],json.dumps(payload,ensure_ascii=False),identifier))
             version=smart.revision(conn,identifier,payload,action)
-            conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
+            if actor=='owner':conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
+            else:conn.execute("DELETE FROM member_drafts WHERE member_id=? AND mode=?",(actor,item["mode"]))
+            members.event(conn,actor,'report-'+action,identifier,{'mode':item['mode'],'version':version})
     finally:conn.close()
     return {"id":identifier,"mode":item["mode"],"date":item["date"],"version":version}
 
@@ -332,15 +342,43 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length",str(len(body)))
         for key,value in policy.items():self.send_header(key,value)
         if identity.enabled():self.send_header('Strict-Transport-Security','max-age=31536000')
-        for key,value in (headers or {}).items():self.send_header(key,value)
+        for key,value in (headers or {}).items():
+            for entry in (value if isinstance(value,list) else [value]):self.send_header(key,entry)
         self.end_headers()
         self.wfile.write(body)
 
     def error(self,status:int,message:str):
         self.respond(status,json.dumps({"error":message},ensure_ascii=False).encode(),"application/json; charset=utf-8")
 
+    def principal(self):
+        if not identity.enabled():return members.OWNER.copy() if self.session() else None
+        if identity.session(self.headers):return members.OWNER.copy()
+        return members.principal(DB_PATH,identity.cookie(self.headers,members.COOKIE))
+
+    def permitted(self,mode,write=False):
+        person=self.principal()
+        if not person or mode not in person['modules'] or (write and person['role']=='viewer'):
+            self.error(403,"Nu ai permisiune pentru această operațiune.");return False
+        return True
+
+    def owner_only(self):
+        if not self.principal() or self.principal()['role']!='owner':
+            self.error(403,"Doar proprietarul poate administra accesul și backupurile.");return False
+        return True
+
+    def report_permission(self,identifier,write=False):
+        conn=database()
+        try:row=conn.execute('SELECT mode FROM reports WHERE id=?',(identifier,)).fetchone()
+        finally:conn.close()
+        if not row:self.error(404,"Raport inexistent.");return False
+        return self.permitted(row['mode'],write)
+
     def session(self):
-        if identity.enabled():return identity.session(self.headers)
+        if identity.enabled():
+            owner=identity.session(self.headers)
+            if owner:return owner
+            token=identity.cookie(self.headers,members.COOKIE)
+            return token if members.principal(DB_PATH,token) else None
         if not PASSWORD:return "local"
         cookie=self.headers.get("Cookie","")
         match=re.search(r"(?:^|;\s*)plup_session=([0-9]+\.[a-f0-9]{64})(?:;|$)",cookie)
@@ -353,6 +391,11 @@ class Handler(BaseHTTPRequestHandler):
     def authorize(self,mutation=False):
         token=self.session()
         if not token:self.error(401,"Autentificarea este necesară.");return False
+        if self.path.startswith('/api/admin/') and not self.owner_only():return False
+        person=self.principal()
+        if not person:self.error(401,"Autentificarea este necesară.");return False
+        if mutation and person['role']=='viewer' and (self.command=='PUT' or urlsplit(self.path).path in ('/api/reports','/api/smart/draft','/api/smart/restore','/api/smart/table','/api/plan/import','/api/forecast/import','/api/inventory/import')):
+            self.error(403,"Contul Cititor poate consulta și exporta rapoartele permise.");return False
         if mutation and (PASSWORD or identity.enabled()):
             expected=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest()
             if not hmac.compare_digest(self.headers.get("X-CSRF-Token",""),expected):
@@ -364,6 +407,11 @@ class Handler(BaseHTTPRequestHandler):
         if pathname=="/health":
             self.respond(200,b"ok","text/plain; charset=utf-8");return
         if identity.enabled():
+            if pathname in ('/auth/member-login','/invite'):
+                from server.member_pages import page
+                self.respond(200,page(pathname=='/invite'),'text/html; charset=utf-8');return
+            if pathname=='/auth/member.js':
+                self.respond(200,(WEB/'member-login.js').read_bytes(),'text/javascript; charset=utf-8');return
             if pathname=="/auth/style.css":
                 self.respond(200,identity.STYLE,"text/css; charset=utf-8");return
             if pathname in ("/auth/login","/auth/callback"):
@@ -382,14 +430,20 @@ class Handler(BaseHTTPRequestHandler):
                 if pathname.startswith('/api/'):
                     self.error(401,"Conectează-te cu GitHub.")
                 else:
-                    try:identity.config();status,message=200,'Acces permis exclusiv contului autorizat. Nu este necesară instalarea Tailscale.'
+                    try:identity.config();status,message=200,'Acces privat pentru proprietar și colegii invitați.'
                     except ValueError:status,message=503,'Accesul prin browser este în curs de configurare.'
                     self.respond(status,identity.page(message),"text/html; charset=utf-8")
                 return
         if pathname=="/api/session":
             token=self.session()
             csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest() if (PASSWORD or identity.enabled()) and token else ""
-            self.respond(200,json.dumps({"authenticated":bool(token),"csrf":csrf,"provider":"github" if identity.enabled() else "password"}).encode(),"application/json; charset=utf-8");return
+            self.respond(200,json.dumps({"authenticated":bool(token),"csrf":csrf,"provider":("github" if (self.principal() and self.principal()['role']=='owner') or (not self.principal() and not identity.cookie(self.headers,members.COOKIE)) else "email") if identity.enabled() else "password","user":self.principal()}).encode(),"application/json; charset=utf-8");return
+        if pathname=='/api/admin/members':
+            if not self.authorize() or not self.owner_only():return
+            conn=database()
+            try:result=members.listing(conn)
+            finally:conn.close()
+            self.respond(200,json.dumps(result,ensure_ascii=False).encode(),'application/json');return
         if pathname in ("/api/smart/dashboard","/api/smart/drafts","/api/smart/versions"):
             if not self.authorize():return
             query=parse_qs(urlsplit(self.path).query);conn=database()
@@ -397,13 +451,17 @@ class Handler(BaseHTTPRequestHandler):
                 if pathname.endswith("dashboard"):
                     days=int(query.get("days",[7])[0])
                     if days not in (7,30):raise ValueError("Perioadă invalidă.")
-                    result=smart.dashboard(conn,query.get("date",[date.today().isoformat()])[0],days,validate_report)
+                    result=smart.dashboard(conn,query.get("date",[date.today().isoformat()])[0],days,validate_report,self.principal()["modules"])
                 elif pathname.endswith("drafts"):
-                    result=[{"mode":r["mode"],"updated_at":r["updated_at"],"payload":json.loads(r["payload"]),"metadata":json.loads(r["metadata"])} for r in conn.execute("SELECT * FROM drafts")]
+                    person=self.principal()
+                    rows=conn.execute("SELECT * FROM drafts") if person['id']=='owner' else conn.execute("SELECT * FROM member_drafts WHERE member_id=?",(person['id'],))
+                    result=[{"mode":r["mode"],"updated_at":r["updated_at"],"payload":json.loads(r["payload"]),"metadata":json.loads(r["metadata"])} for r in rows if r['mode'] in person['modules']] if person['role']!='viewer' else []
                 else:
                     identifier=query.get("id",[""])[0];uuid.UUID(identifier)
+                    if not self.report_permission(identifier):return
                     result=[dict(r) for r in conn.execute("SELECT version,created_at,action,payload FROM report_versions WHERE report_id=? ORDER BY version DESC LIMIT 100",(identifier,))]
                     for r in result:r["payload"]=json.loads(r["payload"])
+                    result=[r for r in result if r["payload"].get("mode") in self.principal()["modules"]]
             except (ValueError,TypeError):self.error(400,"Solicitare invalidă.");return
             finally:conn.close()
             self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
@@ -427,12 +485,16 @@ class Handler(BaseHTTPRequestHandler):
                 offset=max(0,int(query.get("offset",[0])[0]))
             except ValueError: self.error(400,"Limită invalidă.");return
             conn=database()
-            try: records=[dict(row) for row in conn.execute("SELECT id,mode,report_date AS date,created_at,COALESCE((SELECT MAX(created_at) FROM report_versions v WHERE v.report_id=reports.id),created_at) AS updated_at FROM reports ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",(limit,offset))]
+            try:
+                modes=self.principal()['modules'];marks=','.join('?' for _ in modes)
+                records=[dict(row) for row in conn.execute("SELECT id,mode,report_date AS date,created_at,COALESCE((SELECT MAX(created_at) FROM report_versions v WHERE v.report_id=reports.id),created_at) AS updated_at FROM reports WHERE mode IN ("+marks+") ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",(*modes,limit,offset))]
             finally: conn.close()
             self.respond(200,json.dumps(records).encode(),"application/json; charset=utf-8");return
         if pathname=="/api/reports/latest":
             if not self.authorize():return
-            try:payload=latest_template(parse_qs(urlsplit(self.path).query).get("mode",[""])[0])
+            mode=parse_qs(urlsplit(self.path).query).get("mode",[""])[0]
+            if not self.permitted(mode):return
+            try:payload=latest_template(mode)
             except InvalidReport as exc:self.error(400,str(exc));return
             self.respond(200,json.dumps({"payload":payload},ensure_ascii=False).encode(),"application/json; charset=utf-8");return
         if pathname.startswith("/api/reports/"):
@@ -444,6 +506,7 @@ class Handler(BaseHTTPRequestHandler):
             try: record=conn.execute("SELECT id,mode,report_date AS date,created_at,payload FROM reports WHERE id=?",(identifier,)).fetchone()
             finally: conn.close()
             if not record: self.error(404,"Raport inexistent.");return
+            if not self.permitted(record["mode"]):return
             result=dict(record);result["payload"]=json.loads(result["payload"]);conn=database()
             try:result["version"]=smart.latest_version(conn,identifier)
             finally:conn.close()
@@ -454,10 +517,17 @@ class Handler(BaseHTTPRequestHandler):
         target=(WEB/pathname.lstrip("/")).resolve()
         if not target.is_relative_to(WEB) or target.suffix not in MIME or not target.is_file():
             self.error(404,"Resursa nu există.");return
-        self.respond(200,target.read_bytes(),MIME[target.suffix]+("; charset=utf-8" if target.suffix in (".html",".css",".js") else ""))
+        content=target.read_bytes()
+        if target.name=='index.html':
+            from html import escape
+            access=escape(json.dumps(self.principal(),ensure_ascii=False),quote=True)
+            content=content.replace(b'</head>',('<meta name="plup-access" content="'+access+'"></head>').encode())
+        self.respond(200,content,MIME[target.suffix]+("; charset=utf-8" if target.suffix in (".html",".css",".js") else ""))
 
     def do_POST(self):
         parts=urlsplit(self.path);path=parts.path
+        if identity.enabled() and path in ('/auth/member-login','/auth/invite-preview','/auth/activate'):
+            self.member_auth(path);return
         if identity.enabled() and path=='/api/login':
             self.error(403,"Conectarea prin parolă este dezactivată. Folosește GitHub.");return
         if identity.enabled() and path=='/auth/logout':
@@ -465,9 +535,15 @@ class Handler(BaseHTTPRequestHandler):
             if not origin or urlsplit(origin).netloc != self.headers.get('Host'):
                 self.error(403,"Origine neautorizată.");return
             if not self.authorize(mutation=True):return
+            person=self.principal();conn=database()
+            try:
+                with conn:
+                    conn.execute('DELETE FROM member_sessions WHERE token_hash=?',(members.digest(identity.cookie(self.headers,members.COOKIE)),))
+                    members.event(conn,person['id'],'logout',person['id'])
+            finally:conn.close()
             identity.logout(self.headers)
-            self.respond(200,b'{}','application/json',{'Set-Cookie':'__Host-plup_identity=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'});return
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import"):
+            self.respond(200,b'{}','application/json',{'Set-Cookie':[name+'=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0' for name in ('__Host-plup_identity',members.COOKIE)]});return
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import","/api/admin/members/invite","/api/admin/members/update"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -481,6 +557,18 @@ class Handler(BaseHTTPRequestHandler):
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
+            person=self.principal()
+            if path in ('/api/admin/members/invite','/api/admin/members/update'):
+                conn=database()
+                try:result=members.issue(conn,body) if path.endswith('/invite') else members.update(conn,body)
+                finally:conn.close()
+                if result.get('token'):
+                    result['url']=identity.config()[0]+'/invite#token='+result.pop('token')
+                self.respond(200,json.dumps(result).encode(),'application/json');return
+            scoped=body.get('payload') if path=='/api/smart/draft' and isinstance(body,dict) else body
+            if isinstance(scoped,dict) and scoped.get('mode') and not self.permitted(scoped['mode'],path in ('/api/reports','/api/smart/draft')):return
+            fixed={'/api/plan/analysis':'plan','/api/plan/import':'plan','/api/inventory/import':'plan','/api/forecast/import':'forecast'}
+            if path in fixed and not self.permitted(fixed[path],path.endswith('/import')):return
             if path in ('/api/admin/preview','/api/admin/import'):
                 from server import data_admin
                 try:
@@ -502,19 +590,24 @@ class Handler(BaseHTTPRequestHandler):
             if path in ("/api/smart/check","/api/smart/draft","/api/smart/restore"):
                 if path.endswith("check"):
                     conn=database()
-                    try:result=smart.checks(body,validate_report,conn)
+                    try:result=smart.checks(body,validate_report,conn if "plan" in person["modules"] else None)
                     finally:conn.close()
                 elif path.endswith("draft"):
                     conn=database()
-                    try:result=smart.draft_save(conn,body)
+                    try:
+                        result=smart.draft_save(conn,body) if person["id"]=="owner" else members.draft_save(conn,body,person["id"])
                     finally:conn.close()
                 else:
                     if not isinstance(body,dict) or set(body)!={"id","version","expected"} or type(body.get("version")) is not int or type(body.get("expected")) is not int:raise InvalidReport("Restaurare invalidă.")
-                    uuid.UUID(body["id"]);conn=database()
+                    uuid.UUID(body["id"])
+                    if not self.report_permission(body["id"],True):return
+                    conn=database()
                     try:old=conn.execute("SELECT payload FROM report_versions WHERE report_id=? AND version=?",(body["id"],int(body["version"]))).fetchone()
                     finally:conn.close()
                     if not old:raise InvalidReport("Versiunea nu există.")
-                    result=update_report(body["id"],json.loads(old["payload"]),body["expected"],"restore")
+                    previous=json.loads(old['payload'])
+                    if not self.permitted(previous['mode'],True):return
+                    result=update_report(body["id"],previous,body["expected"],"restore",person['id'])
                 self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path in ("/api/plan/import","/api/forecast/import"):
                 if not isinstance(body,dict) or set(body)!={"image"}:
@@ -522,7 +615,7 @@ class Handler(BaseHTTPRequestHandler):
                 result=import_plan(body["image"]) if path=="/api/plan/import" else import_forecast(body["image"])
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path=="/api/plan/analysis":
-                report=process_plan(body);result=plan_insights(report,body)
+                report=process_plan(body);result=plan_insights(report,body,"weekday" in person["modules"])
                 self.respond(200,json.dumps(serialize(result),ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path=="/api/login":
                 key=self.client_address[0];now=time.monotonic()
@@ -537,11 +630,11 @@ class Handler(BaseHTTPRequestHandler):
                 csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest()
                 self.respond(200,json.dumps({"authenticated":True,"csrf":csrf}).encode(),"application/json; charset=utf-8",{"Set-Cookie":f"plup_session={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800"});return
             if path=="/api/reports":
-                saved=save_report(body)
+                saved=save_report(body,person["id"])
                 self.respond(201,json.dumps(saved).encode(),"application/json; charset=utf-8");return
             report=process_plan(body) if isinstance(body,dict) and body.get("mode")=="plan" else process_forecast(body) if isinstance(body,dict) and body.get("mode")=="forecast" else process(body)
         except (ValueError,UnicodeDecodeError,TypeError,OverflowError) as exc:
-            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) or (path.startswith("/api/smart/") and type(exc) is ValueError) else "Raport invalid.");return
+            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) or ((path.startswith("/api/smart/") or path.startswith("/api/admin/members/")) and type(exc) is ValueError) else "Raport invalid.");return
         if path=="/api/render":
             try:
                 params=parse_qs(parts.query)
@@ -550,14 +643,50 @@ class Handler(BaseHTTPRequestHandler):
                 page=int(params.get("page",[0])[0]);section=params.get("section",["summary"])[0]
                 if report["mode"] in ("plan","forecast"):
                     if (page!=0 and section not in ("clients","stock")) or section not in (("summary","table","clients","stock") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
-                    image=plan_image(report,theme,plan_insights(report,body) if section in ("summary","clients","stock") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
+                    image=plan_image(report,theme,plan_insights(report,body,"weekday" in person["modules"]) if section in ("summary","clients","stock") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
                 else:image=production_image(report,page,theme)
             except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
-            remember_generated(body)
+            if person["role"]!="viewer":remember_generated(body,person["id"])
             self.respond(200,image,"image/png")
         else:
             self.respond(200,json.dumps(serialize(report),ensure_ascii=False).encode(),"application/json; charset=utf-8")
+
+    def member_auth(self,path):
+        origin=self.headers.get('Origin')
+        if not origin or urlsplit(origin).netloc!=self.headers.get('Host'):
+            self.error(403,'Origine neautorizată.');return
+        if self.headers.get('Content-Type','').split(';')[0].strip().lower()!='application/json':
+            self.error(415,'Este necesar application/json.');return
+        length=self.headers.get('Content-Length','')
+        if not length.isdecimal() or int(length)>4096:
+            self.error(413,'Solicitare prea mare.');return
+        try:
+            body=json.loads(self.rfile.read(int(length)));conn=database()
+            try:
+                if path=='/auth/invite-preview':
+                    members.throttle('invite:'+self.client_address[0],100)
+                    row=members.invite(conn,body.get('token') if isinstance(body,dict) else None)
+                    result=members.public(row);result['expires']=row['expires'];token=None
+                elif path=='/auth/activate':
+                    members.throttle('activate:'+self.client_address[0],30)
+                    token=members.activate(conn,body);result={'ok':True}
+                else:token=members.login(conn,body,self.client_address[0]);result={'ok':True}
+            finally:conn.close()
+            headers=None
+            if token:
+                # A successful colleague login explicitly switches this browser's identity.
+                # Never leave a valid owner's cookie taking precedence over the new account.
+                identity.logout(self.headers)
+                conn=database()
+                try:
+                    with conn:conn.execute('DELETE FROM member_sessions WHERE token_hash=?',(members.digest(identity.cookie(self.headers,members.COOKIE)),))
+                finally:conn.close()
+                headers={'Set-Cookie':[f'{members.COOKIE}={token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={members.TTL}',
+                                      '__Host-plup_identity=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0']}
+            self.respond(200,json.dumps(result,ensure_ascii=False).encode(),'application/json',headers)
+        except (ValueError,TypeError,UnicodeDecodeError) as exc:
+            self.error(429 if 'Prea multe' in str(exc) else 400,str(exc) if type(exc) is ValueError else 'Solicitare invalidă.')
 
     def do_PUT(self):
         path=urlsplit(self.path).path
@@ -575,7 +704,11 @@ class Handler(BaseHTTPRequestHandler):
         length=self.headers.get("Content-Length","")
         if not length.isdecimal() or int(length)>MAX_BYTES:
             self.error(413,"Raport prea mare.");return
-        try:record=update_report(identifier,json.loads(self.rfile.read(int(length))),self.headers.get("X-Report-Version"))
+        if not self.report_permission(identifier,True):return
+        try:
+            body=json.loads(self.rfile.read(int(length)))
+            if not isinstance(body,dict) or not self.permitted(body.get('mode'),True):return
+            record=update_report(identifier,body,self.headers.get("X-Report-Version"),actor=self.principal()['id'])
         except (ValueError,UnicodeDecodeError,TypeError,OverflowError) as exc:
             self.error(400,str(exc) if isinstance(exc,InvalidReport) else "Raport invalid.");return
         self.respond(200,json.dumps(record).encode(),"application/json; charset=utf-8")

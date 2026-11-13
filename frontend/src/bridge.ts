@@ -1,9 +1,11 @@
-export type View = 'dashboard'|'weekday'|'weekend'|'plan'|'forecast'|'history'
+export type View = 'dashboard'|'weekday'|'weekend'|'plan'|'forecast'|'history'|'team'
 export type Payload = { mode: string; date: string; week?: string; values?: Record<string,Record<string,string>>; rows?: Record<string,string>[] }
 type Controller = { payload:()=>Payload; draft:()=>{payload:Payload;metadata:{id?:string|null}} }
 declare global {
   interface Window {
     PLUPDashboard:{show:(view:View)=>void;current:()=>View;refreshHistory:()=>Promise<void>}
+    PLUPAccess?:{id:string;role:'owner'|'editor'|'viewer';email:string;name?:string;modules:string[];can:(mode:string,write?:boolean)=>boolean}
+    PLUPFetch:typeof fetch
     PLUPReport:Controller
     PLUPPlan:Controller
     PLUPForecast:Controller
@@ -24,7 +26,7 @@ export function snapshot(){
   const invalid=!!document.querySelector('input[aria-invalid="true"]')
   const save=byId(ids.save) as HTMLButtonElement|null,render=byId(ids.render) as HTMLButtonElement|null
   const dirty=byId('workspace-state-'+(view==='plan'?'plan':view==='forecast'?'forecast':'report'))?.textContent||''
-  return {view,payload,invalid,pendingImport,theme:window.PLUPTheme.current(),saveBusy:!!save?.disabled,renderBusy:!!render?.disabled,status:pendingImport?'Tabel nou în așteptare. Verifică asocierile și apasă „Aplică tabelul” înainte de salvare sau generare.':byId(ids.status)?.textContent||dirty}
+  return {access:window.PLUPAccess,view,payload,invalid,pendingImport,theme:window.PLUPTheme.current(),saveBusy:!!save?.disabled,renderBusy:!!render?.disabled,status:pendingImport?'Tabel nou în așteptare. Verifică asocierile și apasă „Aplică tabelul” înainte de salvare sau generare.':byId(ids.status)?.textContent||dirty}
 }
 export function totals(payload:Payload|undefined){
   if(!payload)return {al:0,cu:0,handed:0,backlog:0,waste:0,processed:0,percent:0}

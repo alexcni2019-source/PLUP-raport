@@ -1,0 +1,41 @@
+.team-workspace {display:grid;gap:26px}
+.team-owner {display:flex;gap:16px;padding:20px 24px;background:var(--secondary);border:1px solid var(--border);border-radius:12px}
+.team-owner>svg {flex:none;color:var(--primary);margin-top:3px}
+.team-owner strong {font-size:20px}
+.team-owner p,.team-panel>p {color:var(--muted-foreground);font-size:17px;line-height:1.5;margin:6px 0 0;max-width:85ch}
+.team-panel,.team-member {padding:24px;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-rest)}
+.team-panel h2,.team-section-heading h2 {font-size:26px;font-weight:650;line-height:1.2;margin:0}
+.team-panel form {margin-top:22px}
+.team-fields {display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.team-workspace label {display:grid;gap:7px;color:var(--foreground);font-size:16px;font-weight:550}
+.team-workspace input:not([type=checkbox]),.team-workspace select {font:inherit;font-size:17px;min-height:48px;min-width:0;width:100%;padding:10px 12px;border:1px solid var(--input);border-radius:9px;background:var(--card);color:var(--foreground)}
+.team-workspace input:focus-visible,.team-workspace select:focus-visible {outline:3px solid var(--primary);outline-offset:3px}
+.team-modules {display:flex;gap:12px 24px;flex-wrap:wrap;min-width:0;padding:0;border:0;margin:20px 0}
+.team-modules legend {font-size:16px;font-weight:600;margin-bottom:6px}
+.team-modules label {display:flex;align-items:center;gap:10px;min-height:44px;font-weight:450}
+.team-modules input {width:20px;height:20px;accent-color:var(--primary);flex:none}
+.team-status {font-size:16px;color:var(--muted-foreground);line-height:1.5;margin:12px 0 0;min-height:0}
+.team-status:empty {display:none}
+.team-link {padding:20px;border:1px solid var(--primary);border-radius:12px;margin-top:18px;background:var(--secondary)}
+.team-link h3 {display:flex;gap:10px;align-items:center;font-size:20px;font-weight:650;margin:0}
+.team-link>p {font-size:16px;margin:10px 0 16px;color:var(--muted-foreground)}
+.team-link label {margin-bottom:12px}
+.team-section-heading {display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px}
+.team-member+.team-member {margin-top:16px}
+.team-member-heading {display:flex;justify-content:space-between;align-items:start;gap:16px;margin-bottom:18px}
+.team-member-heading h3 {font-size:22px;font-weight:650;margin:0;overflow-wrap:anywhere}
+.team-member-heading p {font-size:16px;color:var(--muted-foreground);margin:5px 0 0;overflow-wrap:anywhere}
+.team-state {background:var(--secondary);color:var(--primary);border-radius:6px;font-size:14px;padding:6px 10px;flex:none}
+.team-state.revoked {color:var(--destructive);background:var(--background)}
+.team-member-settings {display:grid;grid-template-columns:280px minmax(0,1fr);gap:28px;align-items:start}
+.team-member-settings .team-modules {margin:0}
+.team-actions {display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.team-revoke {color:var(--destructive)!important}
+.team-journal {margin:18px 0 0;list-style:none;padding:0}
+.team-journal li {display:grid;grid-template-columns:1fr 1fr auto;gap:12px;padding:13px 0;border-top:1px solid var(--border);font-size:16px}
+.team-journal time {color:var(--muted-foreground);font-size:15px}
+.team-journal span {overflow-wrap:anywhere}
+html[data-role=viewer] .working-views .smart-excel,html[data-role=viewer] .working-views .plan-import,html[data-role=viewer] .working-views .plan-paste-zone {display:none!important}
+html[data-role=viewer] .working-views input:disabled,html[data-role=viewer] .working-views select:disabled,html[data-role=viewer] .working-views textarea:disabled {opacity:1;color:var(--foreground);-webkit-text-fill-color:var(--foreground);background:var(--secondary)}
+@media(max-width:1000px){.team-fields {grid-template-columns:1fr 1fr}.team-fields>label:last-child {grid-column:1/-1}.team-member-settings {grid-template-columns:1fr;gap:18px}.team-journal li {grid-template-columns:1fr 1fr}.team-journal time {grid-column:1/-1}}
+@media(max-width:600px){.team-owner,.team-panel,.team-member {padding:18px}.team-fields {grid-template-columns:1fr}.team-fields>label:last-child {grid-column:auto}.team-modules {display:grid;gap:4px}.team-member-heading {display:block}.team-state {display:inline-block;margin-top:10px}.team-actions {display:grid;grid-template-columns:1fr}.team-actions [data-ui-button] {white-space:normal}.team-link {padding:16px}.team-panel h2,.team-section-heading h2 {font-size:24px}.team-section-heading {flex-wrap:wrap}.team-journal li {grid-template-columns:1fr;gap:4px}.team-journal time {grid-column:auto}}

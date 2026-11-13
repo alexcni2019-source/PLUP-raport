@@ -113,13 +113,14 @@ def checks(payload,validate,conn=None):
             summary=f"Previz: {len(report['rows'])} produse, {tons} t și {km} km. Stadiile sunt cele completate în formular."
     return {'warnings':warnings,'summary':summary,'basis':'Rezumat calculat din valorile formularului. Nu include explicații sau cauze deduse.'}
 
-def dashboard(conn,end,days,validate):
+def dashboard(conn,end,days,validate,modes=MODES):
     finish=date.fromisoformat(end)
     if not 2020<=finish.year<=2100:raise ValueError('Data invalidă.')
     start=finish-timedelta(days=days-1);prior=start-timedelta(days=days)
     records=conn.execute("SELECT *,COALESCE((SELECT MAX(created_at) FROM report_versions v WHERE v.report_id=reports.id),created_at) AS updated_at FROM reports ORDER BY updated_at,id").fetchall()
     daily={};catalog={};recent=[]
     for record in records:
+        if record['mode'] not in modes:continue
         p=json.loads(record['payload']);recent.append({'id':record['id'],'mode':record['mode'],'date':record['report_date'],'updated_at':record['updated_at']})
         if record['mode'] in ('plan','forecast'):
             for row in p.get('rows',[]):

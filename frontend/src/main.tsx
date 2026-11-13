@@ -4,6 +4,7 @@ import App from './App'
 import './tokens.css'
 import './live.css'
 import './workspace-finish.css'
+import './team.css'
 
 const nonce=document.querySelector<HTMLMetaElement>('meta[name="plup-style-nonce"]')?.content
 if(nonce)setNonce(nonce)
