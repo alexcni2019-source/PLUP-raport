@@ -1,0 +1,127 @@
+/* Teal & Cream workspace: the editor leads, with restrained depth and motion. */
+.modern-shell {grid-template-columns:190px minmax(0,1fr)}
+.modern-sidebar {align-items:stretch;padding:30px 18px;gap:34px;background:#10483f}
+.modern-brand {align-items:flex-start;gap:12px;padding:0 12px;color:#fff9e9}
+.modern-brand b {font-size:32px}
+.modern-brand b small {font-size:12px;letter-spacing:2px}
+.modern-brand>span {font-size:16px;letter-spacing:2px}
+.modern-sidebar nav {gap:7px}
+.modern-sidebar nav [data-ui-button] {flex-direction:row;justify-content:flex-start;min-height:50px;padding:12px 14px;font-size:16px;gap:13px;border-radius:9px}
+.modern-sidebar nav [aria-current=page] {background:#e6edbd;color:#173d38;box-shadow:0 2px 6px #003b2b20}
+.modern-private {display:flex;align-items:center;justify-content:flex-start;gap:12px;text-align:left;padding:12px;font-size:14px}
+.modern-private br {display:none}
+.modern-topbar {min-height:66px;padding:11px 30px}
+.modern-appearance label {min-height:44px}
+.modern-appearance [data-slot=switch] {width:46px;min-width:46px;height:26px;min-height:26px;padding:2px}
+.modern-appearance [data-slot=switch-thumb] {width:20px;height:20px}
+.modern-main {padding:24px 30px;max-width:1640px}
+.modern-context {margin-bottom:15px}
+.modern-heading {padding-bottom:20px;margin-bottom:20px;gap:22px}
+.modern-heading h1 {font-size:36px}
+.modern-heading>div>p {font-size:17px;line-height:1.5;margin-top:8px}
+.modern-heading-tools {gap:12px}
+.modern-date {font-size:15px}
+.modern-actions [data-ui-button] {min-height:46px;font-size:15px}
+.workspace-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:0 0 16px;padding:13px 0}
+.workspace-summary-item {min-width:0;padding:0 22px;border-left:1px solid var(--border)}
+.workspace-summary-item:first-child {padding-left:0;border-left:0}
+.workspace-summary-item>span {display:block;color:var(--muted-foreground);font-size:15px;font-weight:550}
+.workspace-summary-item>strong {display:block;font-size:28px;line-height:1.2;letter-spacing:-.02em;font-weight:650;font-variant-numeric:tabular-nums;margin-top:5px}
+.workspace-summary-item small {font-size:18px;font-weight:500;color:inherit}
+.workspace-summary-item p {margin:5px 0 0;color:var(--muted-foreground);font-size:14px;line-height:1.4}
+.modern-status {font-size:15px;margin:10px 0 16px;line-height:1.5;min-height:0}
+.modern-status:empty {display:none}
+.working-views .panel {border:1px solid var(--border);border-radius:14px;padding:24px;box-shadow:var(--shadow-rest)}
+.working-views .plan-panel>.panel-head {display:none}
+.working-views .smart-excel {border:1px solid var(--border);padding:20px 22px;border-radius:12px;margin:0 0 22px;background:var(--card);box-shadow:none}
+.working-views .smart-excel h3 {font-size:23px;margin-bottom:6px}
+.working-views .smart-excel>.smart-note {font-size:16px;line-height:1.5;margin:0 0 12px;max-width:85ch}
+.working-views .smart-excel>label {display:block}
+.working-views .smart-excel textarea {display:block;min-height:90px;resize:vertical;margin-top:7px;width:100%;font-size:17px!important}
+.working-views .smart-excel>.plan-actions {display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.working-views .smart-excel [data-read-table] {background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+.working-views .smart-excel [data-template] {order:3;margin-left:auto}
+.working-views .smart-excel>p:empty {display:none}
+.working-views .plan-controls {margin:0 0 20px}
+.working-views .workspace-disclosure {border:1px solid var(--border);box-shadow:none;border-radius:10px;margin:16px 0;padding:0 18px}
+.working-views .workspace-disclosure>summary {min-height:48px;font-size:17px}
+.working-views .workspace-filters {border:1px solid var(--border);box-shadow:none;border-radius:10px;padding:14px 16px}
+.working-views .plan-group {border:1px solid var(--border);border-radius:12px;padding:22px;box-shadow:none}
+.working-views .plan-group h3 {font-size:24px}
+.working-views .plan-group h3>small {font-size:15px}
+.working-views .workspace-table th {font-size:15px;padding:12px 10px}
+.working-views .workspace-table td {padding:14px 10px}
+.working-views .workspace-table input {font-size:18px!important;min-height:48px}
+.working-views .workspace-row-actions button {font-size:15px;min-height:44px}
+.working-views .plan-total-card,.working-views .plan-totals>div {border:1px solid var(--border);box-shadow:none}
+.working-views .unit-badge,.working-views .workspace-badge {font-size:13px}
+.working-views .workspace-feature-metrics>strong small {color:inherit}
+.working-views .workspace-feature-copy .primary-button,.working-views .workspace-feature-copy .primary-button span {font-size:17px}
+.working-views button,.working-views .plan-file-button {min-height:46px}
+.working-views .smart-excel button:focus-visible {outline:3px solid var(--primary);outline-offset:3px}
+
+@media(min-width:1250px) {
+ .modern-heading {display:flex}
+ .modern-heading-tools {display:grid;justify-items:end;margin-top:0}
+}
+@media(max-width:1249px) and (min-width:761px) {
+ .modern-shell {grid-template-columns:168px minmax(0,1fr)}
+ .modern-sidebar {padding-left:12px;padding-right:12px}
+ .modern-sidebar nav [data-ui-button] {padding:12px 10px}
+ .modern-main {padding:24px}
+ .modern-heading {display:block}
+ .modern-heading-tools {display:flex;margin-top:15px;justify-content:space-between;align-items:center}
+}
+@media(max-width:760px) {
+ .modern-shell {display:block}
+ .modern-sidebar {display:none}
+ .modern-topbar {min-height:60px;padding:9px 14px}
+ .modern-main {padding:18px 16px 24px}
+ .modern-context {font-size:14px;margin-bottom:12px}
+ .modern-heading {display:block;padding-bottom:15px;margin-bottom:16px}
+ .modern-heading h1 {font-size:30px;line-height:1.15}
+ .modern-heading>div>p {font-size:16px;line-height:1.45;margin-top:7px}
+ .modern-heading-tools {display:block;margin-top:12px}
+ .modern-date {display:none}
+ .modern-actions {display:grid;grid-template-columns:1fr 1fr;gap:8px}
+ .modern-actions [data-ui-button] {font-size:15px;padding:10px 8px;min-height:44px;white-space:normal}
+ .modern-actions [data-ui-button]:last-child {grid-column:1/-1}
+ .workspace-summary {padding:10px 0;margin-bottom:12px}
+ .workspace-summary-item {padding:0 10px}
+ .workspace-summary-item>span {font-size:14px;line-height:1.3}
+ .workspace-summary-item>strong {font-size:23px;margin-top:6px}
+ .workspace-summary-item small {font-size:16px}
+ .workspace-summary-item p {display:none}
+ .modern-status {font-size:14px;line-height:1.4;margin:8px 0 12px}
+ .working-views .panel {padding:16px;border-radius:12px}
+ .working-views .smart-excel {padding:16px;margin:0 0 18px}
+ .working-views .smart-excel h3 {font-size:22px;line-height:1.25}
+ .working-views .smart-excel>.smart-note {font-size:15px;margin-bottom:10px}
+ .working-views .smart-excel textarea {min-height:88px}
+ .working-views .smart-excel>.plan-actions {display:grid;grid-template-columns:1fr;gap:9px}
+ .working-views .smart-excel>.plan-actions>button {width:100%;margin:0;white-space:normal}
+ .working-views .smart-excel [data-template] {font-size:15px}
+ .working-views .plan-group {padding:16px}
+ .working-views .workspace-product {padding:18px 0;gap:14px}
+ .working-views .workspace-table td {padding:0}
+ .working-views .workspace-table .plan-field>span {font-size:15px}
+ .working-views .workspace-disclosure {padding:0 14px}
+ .working-views .workspace-disclosure>summary {font-size:17px}
+ .working-views .workspace-feature-metrics>strong {font-size:48px}
+}
+@media(max-width:370px) {
+ .modern-main {padding-left:12px;padding-right:12px}
+ .modern-heading h1 {font-size:28px}
+ .workspace-summary-item {padding:0 7px}
+ .workspace-summary-item>strong {font-size:21px}
+ .workspace-summary-item>span {font-size:13px}
+ .working-views .panel,.working-views .smart-excel {padding:14px}
+}
+@media(hover:hover) and (pointer:fine) {
+ .modern-sidebar nav [data-ui-button]:hover {background:#ffffff17;transform:none}
+ .modern-sidebar nav [aria-current=page]:hover {background:#f0f3d3;color:#173d38}
+ .working-views .smart-excel [data-read-table]:hover {box-shadow:var(--shadow-raised)}
+}
+@media(prefers-reduced-motion:reduce) {
+ .modern-sidebar nav [data-ui-button],.working-views .smart-excel button {transition:none;transform:none}
+}
