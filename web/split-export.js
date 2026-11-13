@@ -4,7 +4,7 @@
     window.PLUPTables?.assertApplied(payload.mode);
     const snapshot=JSON.stringify(payload),parts=payload.mode==='forecast'
       ?[['summary','Execuție și diagrame'],['table','Lista de previz']]
-      :[['summary','Analiză și diagrame'],['table','Lista produselor']];
+      :[['overview','Sinteză pentru telefon'],['table','Tabel complet · produse'],['summary','Analiză și diagrame']];
     if(payload.mode==='plan'){
       const response=await window.PLUPFetch('/api/plan/analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:snapshot,credentials:'same-origin'});
       const data=await response.json();if(!response.ok)throw Error(data.error||'Analiza fluxului nu a reușit.');

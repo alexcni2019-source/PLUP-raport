@@ -1,6 +1,7 @@
 """Readable execution instructions for shift two, with no status leakage."""
 from PIL import Image,ImageDraw
 from server.render import font,wrapped
+from server.export_marks import urgent_badge
 from server.forecast_work import decimal_text
 
 def work_image(entries,p,width=1672):
@@ -22,11 +23,12 @@ def work_image(entries,p,width=1672):
  image=Image.new('RGB',(width,height),p['bg']);d=ImageDraw.Draw(image)
  d.text((30,10),'LISTA DE EXECUȚIE · SCHIMBUL 2',font=font(19,True),fill=p['ink']);y=55
  for entry,headline,body,h in layouts:
-  urgent=entry['priority']=='urgent';accent='#f0a58d' if p['bg']=='#141f1a' else '#b42318'
+  urgent=entry['priority']=='urgent';accent=p['alert']
   d.rounded_rectangle((30,y,width-30,y+h),radius=10,fill=p['paper'],outline=p['line'])
   d.rectangle((30,y+9,34,y+h-9),fill=accent if urgent else p['accent'])
   for i,line in enumerate(headline):d.text((50,y+14+i*26),line,font=font(18,True),fill=p['ink'])
-  d.text((width-190,y+17),'URGENT' if urgent else 'NORMAL',font=font(15,True),fill=accent if urgent else p['muted'])
+  if urgent:urgent_badge(d,(width-145,y+26),p,18)
+  else:d.text((width-190,y+17),'NORMAL',font=font(15,True),fill=p['muted'])
   yy=y+18+26*len(headline)
   for i,line in enumerate(body):d.text((50,yy+i*24),line,font=font(16),fill=p['ink'])
   y+=h+10

@@ -1,7 +1,7 @@
-"""Owner-issued invitations, local colleague accounts and revocable sessions.
+"""Owner-managed colleague accounts and revocable sessions.
 
 The GitHub owner remains configured outside this table. Tokens are stored only
-as hashes; no password, invitation token or session token enters the audit log.
+as hashes; no password or session token enters the audit log.
 """
 import hashlib
 import hmac
@@ -17,8 +17,8 @@ from server import smart
 MODES = ('weekday', 'weekend', 'plan', 'forecast')
 COOKIE = '__Host-plup_member'
 TTL = 28800
-INVITE_TTL = 48 * 3600
-OWNER = {'id': 'owner', 'role': 'owner', 'email': '', 'modules': list(MODES)}
+USERNAME = re.compile(r'[a-z0-9][a-z0-9._-]{2,63}', re.ASCII)
+OWNER = {'id': 'owner', 'role': 'owner', 'username': '', 'modules': list(MODES)}
 LOCK = threading.Lock()
 HASH_SLOTS = threading.BoundedSemaphore(4)
 FAILURES = {}
@@ -31,9 +31,6 @@ def bootstrap(conn):
         role TEXT NOT NULL CHECK(role IN ('editor','viewer')), modules TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1, password_hash TEXT,
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS member_invites (
-        token_hash TEXT PRIMARY KEY, member_id TEXT NOT NULL,
-        expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS member_sessions (
         token_hash TEXT PRIMARY KEY, member_id TEXT NOT NULL, expires INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS member_sessions_user ON member_sessions(member_id);
@@ -58,7 +55,10 @@ def digest(token):
 
 
 def public(row):
-    return {k: row[k] for k in ('id', 'email', 'name', 'role')} | {'modules': json.loads(row['modules'])}
+    # Keep the original unique column to preserve legacy email logins.
+    return {k: row[k] for k in ('id', 'name', 'role')} | {
+        'username': row['email'], 'modules': json.loads(row['modules']),
+    }
 
 
 def principal(path, token):
@@ -101,38 +101,36 @@ def validate_profile(body):
     return role, [m for m in MODES if m in modules]
 
 
-def issue(conn, body):
+def create(conn, body):
     role, modules = validate_profile(body)
-    email = body.get('email', '')
-    name = body.get('name', '').strip() if isinstance(body.get('name', ''), str) else ''
-    if (not isinstance(email, str) or len(email) > 254 or
-            not re.fullmatch(r'[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+', email.strip())):
-        raise ValueError('Introdu o adresă de email validă.')
-    email = email.strip().casefold()
-    if len(name) > 100 or any(ord(c) < 32 for c in name):
+    username = body.get('username')
+    username = username.strip().lower() if isinstance(username, str) else ''
+    if not USERNAME.fullmatch(username):
+        raise ValueError('Alege un utilizator de 3–64 de caractere, cu litere, cifre, punct, cratimă sau underscore.')
+    name = body.get('name', '')
+    if not isinstance(name, str) or len(name) > 100 or any(ord(c) < 32 for c in name):
         raise ValueError('Numele este prea lung sau invalid.')
-    token = secrets.token_urlsafe(32)
-    now = smart.stamp()
+    encoded = password_hash(body.get('password'))
+    identifier, now = str(uuid.uuid4()), smart.stamp()
     with conn:
         conn.execute('BEGIN IMMEDIATE')
-        existing = conn.execute('SELECT id FROM members WHERE email=?', (email,)).fetchone()
-        if existing:
-            raise ValueError('Adresa există deja. Folosește acțiunea pentru utilizatorul existent.')
+        if conn.execute('SELECT 1 FROM members WHERE email=?', (username,)).fetchone():
+            raise ValueError('Acest nume de utilizator există deja.')
         if conn.execute('SELECT COUNT(*) FROM members').fetchone()[0] >= 100:
             raise ValueError('Limita de 100 de utilizatori a fost atinsă.')
-        identifier = str(uuid.uuid4())
-        conn.execute('INSERT INTO members VALUES (?,?,?,?,?,1,NULL,?,?)',
-                     (identifier, email, name, role, json.dumps(modules), now, now))
-        expires = int(time.time()) + INVITE_TTL
-        conn.execute('INSERT INTO member_invites VALUES (?,?,?,0)', (digest(token), identifier, expires))
-        event(conn, 'owner', 'invite', identifier, {'email': email, 'role': role, 'modules': modules})
-    return {'id': identifier, 'token': token, 'expires': expires}
+        conn.execute(
+            'INSERT INTO members (id,email,name,role,modules,active,password_hash,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?,?)',
+            (identifier, username, name.strip(), role, json.dumps(modules), encoded, now, now),
+        )
+        event(conn, 'owner', 'member-create', identifier, {'role': role, 'modules': modules})
+    return {'id': identifier, 'username': username}
 
 
 def update(conn, body):
     if not isinstance(body, dict) or not isinstance(body.get('id'), str):
         raise ValueError('Utilizator invalid.')
     identifier, action = body['id'], body.get('action')
+    encoded = password_hash(body.get('password')) if action == 'password' else None
     with conn:
         conn.execute('BEGIN IMMEDIATE')
         row = conn.execute('SELECT * FROM members WHERE id=?', (identifier,)).fetchone()
@@ -143,35 +141,18 @@ def update(conn, body):
             conn.execute('UPDATE members SET role=?,modules=?,updated_at=? WHERE id=?',
                          (role, json.dumps(modules), smart.stamp(), identifier))
             event(conn, 'owner', 'permissions', identifier, {'role': role, 'modules': modules})
-        elif action == 'revoke':
-            conn.execute('UPDATE members SET active=0,updated_at=? WHERE id=?', (smart.stamp(), identifier))
+        elif action in ('revoke', 'password'):
+            if action == 'password':
+                conn.execute('UPDATE members SET active=1,password_hash=?,updated_at=? WHERE id=?',
+                             (encoded, smart.stamp(), identifier))
+            else:
+                conn.execute('UPDATE members SET active=0,updated_at=? WHERE id=?',
+                             (smart.stamp(), identifier))
             conn.execute('DELETE FROM member_sessions WHERE member_id=?', (identifier,))
-            conn.execute('UPDATE member_invites SET used=1 WHERE member_id=?', (identifier,))
-            event(conn, 'owner', 'revoke', identifier)
-        elif action == 'reissue':
-            # Explicit reset: previous passwords, sessions and invite links stop working.
-            conn.execute('UPDATE member_invites SET used=1 WHERE member_id=?', (identifier,))
-            conn.execute('DELETE FROM member_sessions WHERE member_id=?', (identifier,))
-            conn.execute('UPDATE members SET active=1,password_hash=NULL,updated_at=? WHERE id=?', (smart.stamp(), identifier))
-            token = secrets.token_urlsafe(32)
-            expires = int(time.time()) + INVITE_TTL
-            conn.execute('INSERT INTO member_invites VALUES (?,?,?,0)', (digest(token), identifier, expires))
-            event(conn, 'owner', 'reissue', identifier)
-            return {'id': identifier, 'token': token, 'expires': expires}
+            event(conn, 'owner', 'password-set' if action == 'password' else 'revoke', identifier)
         else:
             raise ValueError('Acțiune invalidă.')
     return {'ok': True}
-
-
-def invite(conn, token):
-    if not isinstance(token, str) or not re.fullmatch(r'[A-Za-z0-9_-]{43}', token):
-        raise ValueError('Invitația este invalidă sau a expirat. Cere proprietarului un link nou.')
-    row = conn.execute('''SELECT m.*,i.expires FROM member_invites i JOIN members m
-      ON m.id=i.member_id WHERE i.token_hash=? AND i.used=0 AND i.expires>?
-      AND m.active=1 AND m.password_hash IS NULL''', (digest(token), int(time.time()))).fetchone()
-    if not row:
-        raise ValueError('Invitația este invalidă sau a expirat. Cere proprietarului un link nou.')
-    return row
 
 
 def password_hash(password, salt=None):
@@ -194,22 +175,6 @@ def new_session(conn, identifier):
     return token
 
 
-def activate(conn, body):
-    if not isinstance(body, dict):
-        raise ValueError('Activare invalidă.')
-    # Validate the invitation before doing password hashing; recheck inside the transaction.
-    invite(conn, body.get('token'))
-    encoded = password_hash(body.get('password'))
-    with conn:
-        conn.execute('BEGIN IMMEDIATE')
-        row = invite(conn, body.get('token'))
-        conn.execute('UPDATE member_invites SET used=1 WHERE token_hash=?', (digest(body['token']),))
-        conn.execute('UPDATE members SET password_hash=?,updated_at=? WHERE id=?', (encoded, smart.stamp(), row['id']))
-        token = new_session(conn, row['id'])
-        event(conn, row['id'], 'activate', row['id'])
-    return token
-
-
 def throttle(key,limit=10):
     now = time.monotonic()
     with LOCK:
@@ -227,24 +192,24 @@ def throttle(key,limit=10):
 def login(conn, body, ip):
     throttle('ip:'+ip,100)
     if not isinstance(body, dict):
-        raise ValueError('Email sau parolă incorectă.')
-    email = body.get('email', '')
-    email = email.strip().casefold() if isinstance(email, str) and len(email) <= 254 else ''
-    throttle('email:'+digest(email))
+        raise ValueError('Utilizator sau parolă incorectă.')
+    username = body.get('username', body.get('email', ''))
+    username = username.strip().casefold() if isinstance(username, str) and len(username) <= 254 else ''
+    throttle('username:'+digest(username))
     password = body.get('password')
     if not isinstance(password, str) or not 12 <= len(password) <= 128:
-        raise ValueError('Email sau parolă incorectă.')
-    row = conn.execute('SELECT * FROM members WHERE email=?', (email,)).fetchone()
+        raise ValueError('Utilizator sau parolă incorectă.')
+    row = conn.execute('SELECT * FROM members WHERE email=?', (username,)).fetchone()
     encoded = row['password_hash'] if row and row['password_hash'] else 'scrypt$32768$8$3$'+'0'*32+'$'+'0'*128
     candidate = password_hash(password, encoded.split('$')[4])
     if not hmac.compare_digest(candidate, encoded) or not row or not row['active']:
-        raise ValueError('Email sau parolă incorectă.')
+        raise ValueError('Utilizator sau parolă incorectă.')
     with conn:
         # Revocation and password reset may happen while scrypt runs.
         conn.execute('BEGIN IMMEDIATE')
         current = conn.execute('SELECT active,password_hash FROM members WHERE id=?', (row['id'],)).fetchone()
         if not current or not current['active'] or current['password_hash'] != encoded:
-            raise ValueError('Email sau parolă incorectă.')
+            raise ValueError('Utilizator sau parolă incorectă.')
         token = new_session(conn, row['id'])
         event(conn, row['id'], 'login', row['id'])
     return token

@@ -1,42 +1,207 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Copy, Link2, RefreshCw, ShieldCheck, UserPlus } from 'lucide-react'
+import { RefreshCw, ShieldCheck, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-type Member={id:string;email:string;name:string;role:'editor'|'viewer';modules:string[];active:boolean;activated:boolean;created_at:string}
-type AccessEvent={id:number;created_at:string;actor:string;action:string;target:string}
-type Listing={members:Member[];events:AccessEvent[]}
-type Link={id:string;url:string;expires:number}
-const groups=[{label:'Producție · o zi și trei zile',modes:['weekday','weekend']},{label:'Plan de producție',modes:['plan']},{label:'Previz',modes:['forecast']}]
-const dateLabel=(value:string|number)=>new Date(value).toLocaleString('ro-RO',{timeZone:'Europe/Bucharest'})
-const all=['weekday','weekend','plan','forecast']
-async function request(path:string,body?:unknown){const r=await window.PLUPFetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const result=await r.json();if(!r.ok)throw Error(result.error||'Operațiunea nu a reușit.');return result}
-
-function Modules({value,onChange,prefix,disabled=false}:{value:string[];onChange:(m:string[])=>void;prefix:string;disabled?:boolean}){
- return <fieldset className="team-modules" disabled={disabled}><legend>Module permise</legend>{groups.map(g=><label key={g.label}><input type="checkbox" name={prefix} checked={g.modes.every(m=>value.includes(m))} onChange={e=>onChange(e.target.checked?[...new Set([...value,...g.modes])]:value.filter(m=>!g.modes.includes(m)))}/><span>{g.label}</span></label>)}</fieldset>
+type Role = 'editor' | 'viewer'
+type Member = { id: string; username: string; name: string; role: Role; modules: string[]; active: boolean; activated: boolean }
+type AccessEvent = { id: number; created_at: string; actor: string; action: string }
+type Listing = { members: Member[]; events: AccessEvent[] }
+const groups = [
+  { label: 'Producție · o zi și trei zile', modes: ['weekday', 'weekend'] },
+  { label: 'Plan de producție', modes: ['plan'] },
+  { label: 'Previz', modes: ['forecast'] },
+]
+const all = groups.flatMap(group => group.modes)
+const actions: Record<string, string> = {
+  'member-create': 'Cont creat', 'password-set': 'Parolă setată', permissions: 'Permisiuni schimbate',
+  revoke: 'Acces revocat', login: 'Conectare', logout: 'Deconectare',
+  invite: 'Invitație creată', reissue: 'Acces resetat', activate: 'Cont activat',
+  'report-create': 'Raport creat', 'report-edit': 'Raport modificat', 'report-restore': 'Versiune restaurată',
 }
 
-function MemberCard({member,onUpdate,onLink}:{member:Member;onUpdate:()=>Promise<void>;onLink:(link:Link)=>void}){
- const [role,setRole]=useState(member.role),[modules,setModules]=useState(member.modules),[busy,setBusy]=useState(false),[status,setStatus]=useState('')
- useEffect(()=>{setRole(member.role);setModules(member.modules)},[member.role,member.modules.join(',')])
- async function action(kind:string){
-  if(kind==='revoke'&&!confirm(`Retragi imediat accesul pentru ${member.email}? Rapoartele salvate se păstrează.`))return
-  if(kind==='reissue'&&!confirm(`Resetezi accesul pentru ${member.email}? Parola, sesiunile și linkurile vechi vor fi invalidate. Vei primi un link nou pe care să îl trimiți colegului.`))return
-  setBusy(true);setStatus('Se actualizează…')
-  try{const result=await request('/api/admin/members/update',{id:member.id,action:kind,role,modules});if(result.url)onLink(result);await onUpdate();setStatus(kind==='permissions'?'Permisiunile au fost actualizate.':kind==='revoke'?'Acces retras.':'Link nou pregătit. Trimite-l colegului.')}
-  catch(error){setStatus((error as Error).message)}finally{setBusy(false)}
- }
- return <article className="team-member"><div className="team-member-heading"><div><h3>{member.name||member.email}</h3>{member.name&&<p>{member.email}</p>}</div><span className={`team-state ${member.active?'':'revoked'}`}>{!member.active?'Acces revocat':member.activated?'Activ':'Activare în așteptare'}</span></div><div className="team-member-settings"><label>Rol<select aria-label="Rol" value={role} onChange={e=>setRole(e.target.value as Member['role'])} disabled={busy}><option value="editor">Editor · creează și modifică</option><option value="viewer">Cititor · consultă și exportă</option></select></label><Modules value={modules} onChange={setModules} prefix={member.id} disabled={busy}/></div><div className="team-actions"><Button variant="outline" disabled={busy||!modules.length} onClick={()=>void action('permissions')}>Salvează permisiunile</Button><Button variant="ghost" disabled={busy} onClick={()=>void action('reissue')}>Resetează accesul / link nou</Button>{member.active&&<Button variant="ghost" className="team-revoke" disabled={busy} onClick={()=>void action('revoke')}>Revocă accesul</Button>}</div><p className="team-status" role="status">{status}</p></article>
+async function request<T>(path: string, body?: object): Promise<T> {
+  const response = await window.PLUPFetch(path, body ? {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  } : {})
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.error || 'Operațiunea nu a reușit.')
+  return result
 }
 
-export default function Team(){
- const [data,setData]=useState<Listing>({members:[],events:[]}),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[link,setLink]=useState<Link|null>(null)
- const [email,setEmail]=useState(''),[name,setName]=useState(''),[role,setRole]=useState<Member['role']>('viewer'),[modules,setModules]=useState(all)
- async function refresh(){setLoading(true);try{const next:Listing=await request('/api/admin/members');setData(next);setLink(current=>current&&next.members.some(m=>m.id===current.id&&(!m.active||m.activated))?null:current)}catch(error){setStatus((error as Error).message)}finally{setLoading(false)}}
- useEffect(()=>{void refresh()},[])
- async function invite(event:FormEvent){event.preventDefault();if(busy)return;setBusy(true);setStatus('Se pregătește invitația…');setLink(null);try{const result=await request('/api/admin/members/invite',{email,name,role,modules});setLink(result);setEmail('');setName('');setStatus('Invitație creată. Copiază linkul și trimite-l personal colegului; aplicația nu trimite emailuri.');await refresh()}catch(error){setStatus((error as Error).message)}finally{setBusy(false)}}
- async function copy(){if(!link)return;try{await navigator.clipboard.writeText(link.url);setStatus('Link copiat. Trimite-l doar colegului invitat.')}catch{const field=document.getElementById('member-invite-link') as HTMLInputElement;field.focus();field.select();setStatus('Link selectat. Folosește Copiază sau Ctrl/Cmd+C.')}}
- const labels:Record<string,string>={invite:'Invitație creată',permissions:'Permisiuni schimbate',revoke:'Acces revocat',reissue:'Acces resetat',activate:'Cont activat',login:'Conectare',logout:'Deconectare','report-create':'Raport creat','report-edit':'Raport modificat','report-restore':'Versiune restaurată'}
- const person=(id:string)=>id==='owner'?'Proprietar':data.members.find(m=>m.id===id)?.name||data.members.find(m=>m.id===id)?.email||'Colegul invitat'
- return <div className="team-workspace"><section className="team-owner"><ShieldCheck aria-hidden="true"/><div><strong>Tu ești proprietarul</strong><p>Doar tu inviți colegi, stabilești rolurile și retragi accesul. Contul tău GitHub și controlul asupra aplicației se păstrează.</p></div></section><section className="team-panel" aria-labelledby="invite-title"><h2 id="invite-title">Invită un coleg</h2><p>Colegul își alege propria parolă. Fără Microsoft sau Teams.</p><form onSubmit={event=>void invite(event)}><div className="team-fields"><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} maxLength={254} required autoComplete="off" placeholder="coleg@exemplu.ro"/></label><label>Nume, opțional<input value={name} onChange={e=>setName(e.target.value)} maxLength={100} autoComplete="off"/></label><label>Rol<select aria-label="Rol" value={role} onChange={e=>setRole(e.target.value as Member['role'])}><option value="viewer">Cititor · consultă și exportă</option><option value="editor">Editor · creează și modifică</option></select></label></div><Modules value={modules} onChange={setModules} prefix="invite"/><Button type="submit" disabled={busy||!modules.length}><UserPlus/>{busy?'Se pregătește…':'Creează linkul de invitație'}</Button></form><p className="team-status" role="status">{status}</p>{link&&<div className="team-link"><h3><Link2 aria-hidden="true"/> Link individual · afișat acum</h3><p>Expiră la {dateLabel(link.expires*1000)} (ora României). Poate fi folosit o singură dată. Copiază-l înainte să părăsești pagina.</p><label>Link de activare<input id="member-invite-link" value={link.url} readOnly onFocus={e=>e.target.select()}/></label><Button variant="outline" onClick={()=>void copy()}><Copy/>Copiază linkul</Button></div>}</section><section aria-labelledby="members-title"><div className="team-section-heading"><h2 id="members-title">Colegii tăi · {data.members.length}</h2><Button variant="outline" disabled={loading} onClick={()=>void refresh()}><RefreshCw/>Reîncarcă</Button></div>{loading&&<p role="status">Se încarcă utilizatorii…</p>}{!loading&&!data.members.length&&<p>Nu ai invitat încă niciun coleg. Accesul rămâne doar al tău.</p>}{data.members.map(member=><MemberCard key={member.id} member={member} onUpdate={refresh} onLink={setLink}/>)}</section><section className="team-panel" aria-labelledby="events-title"><h2 id="events-title">Jurnal recent</h2><p>Ultimele 50 de acțiuni noi: acces, permisiuni și modificări de rapoarte. Istoricul anterior acestei funcționalități nu este atribuit retroactiv.</p><ol className="team-journal">{data.events.map(event=><li key={event.id}><strong>{labels[event.action]||event.action}</strong><span>{person(event.actor)}</span><time dateTime={event.created_at}>{dateLabel(event.created_at)}</time></li>)}</ol></section></div>
+function RoleField({ value, onChange }: { value: Role; onChange: (role: Role) => void }) {
+  return <label>Rol<select aria-label="Rol" value={value} onChange={event => onChange(event.target.value as Role)}>
+    <option value="viewer">Cititor · consultă și exportă</option>
+    <option value="editor">Editor · creează și modifică</option>
+  </select></label>
+}
+
+function Modules({ value, onChange }: { value: string[]; onChange: (modes: string[]) => void }) {
+  return <fieldset className="team-modules"><legend>Module permise</legend>
+    {groups.map(group => <label key={group.label}>
+      <input type="checkbox" checked={group.modes.every(mode => value.includes(mode))}
+        onChange={event => onChange(event.target.checked
+          ? [...new Set([...value, ...group.modes])]
+          : value.filter(mode => !group.modes.includes(mode)))} />
+      <span>{group.label}</span>
+    </label>)}
+  </fieldset>
+}
+
+function PasswordField({ label, value, onChange }: {
+  label: string; value: string; onChange: (password: string) => void
+}) {
+  return <label>{label}<input type="password" autoComplete="new-password" minLength={12} maxLength={128}
+    required value={value} onChange={event => onChange(event.target.value)} />
+    <small>Între 12 și 128 de caractere.</small>
+  </label>
+}
+
+function MemberCard({ member, refresh }: { member: Member; refresh: () => Promise<void> }) {
+  const [role, setRole] = useState(member.role)
+  const [modules, setModules] = useState(member.modules)
+  const [editing, setEditing] = useState(false)
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
+  const moduleKey = member.modules.join(',')
+  useEffect(() => { setRole(member.role); setModules(moduleKey.split(',')) }, [member.role, moduleKey])
+
+  async function update(action: 'permissions' | 'password' | 'revoke') {
+    if (busy || (action === 'revoke' && !confirm('Retragi accesul pentru ' + member.username + '?'))) return
+    setBusy(true)
+    setStatus('Se actualizează…')
+    try {
+      const changes = action === 'password' ? { password } : action === 'permissions' ? { role, modules } : {}
+      await request('/api/admin/members/update', { id: member.id, action, ...changes })
+      setPassword('')
+      setEditing(false)
+      setStatus({
+        permissions: 'Permisiuni actualizate.', password: 'Parola a fost setată. Sesiunile anterioare s-au închis.',
+        revoke: 'Acces retras.',
+      }[action])
+      await refresh()
+    } catch (error) {
+      setStatus((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <article className="team-member">
+    <div className="team-member-heading">
+      <div><h3>{member.name || member.username}</h3>{member.name && <p>{member.username}</p>}</div>
+      <span className={'team-state' + (member.active ? '' : ' revoked')}>
+        {!member.active ? 'Acces revocat' : member.activated ? 'Activ' : 'Parolă nesetată'}
+      </span>
+    </div>
+    <fieldset className="team-fieldset" disabled={busy}>
+      <div className="team-member-settings">
+        <RoleField value={role} onChange={setRole} /><Modules value={modules} onChange={setModules} />
+      </div>
+      <div className="team-actions">
+        <Button variant="outline" disabled={!modules.length} onClick={() => void update('permissions')}>Salvează permisiunile</Button>
+        <Button variant="ghost" aria-expanded={editing} onClick={() => { setEditing(!editing); setPassword('') }}>
+          {member.active && member.activated ? 'Schimbă parola' : 'Setează parola și activează'}
+        </Button>
+        {member.active && <Button variant="ghost" className="team-revoke" onClick={() => void update('revoke')}>Revocă accesul</Button>}
+      </div>
+    </fieldset>
+    {editing && <form className="team-password-form" onSubmit={event => { event.preventDefault(); void update('password') }}>
+      <fieldset className="team-fieldset" disabled={busy}>
+        <PasswordField label="Parolă nouă" value={password} onChange={setPassword} />
+        <p>{member.active ? 'Salvarea închide sesiunile active.' : 'Salvarea reactivează contul.'}</p>
+        <Button type="submit">Salvează parola</Button>
+      </fieldset>
+    </form>}
+    <p className="team-status" role="status">{status}</p>
+  </article>
+}
+
+export default function Team() {
+  const [data, setData] = useState<Listing>({ members: [], events: [] })
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState('')
+  const [username, setUsername] = useState('')
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<Role>('viewer')
+  const [modules, setModules] = useState(all)
+
+  async function refresh() {
+    setLoading(true)
+    setError('')
+    try {
+      setData(await request<Listing>('/api/admin/members'))
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { void refresh() }, [])
+
+  async function create(event: FormEvent) {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true)
+    setStatus('Se creează contul…')
+    try {
+      const result = await request<{ username: string }>('/api/admin/members/create', { username, name, password, role, modules })
+      setUsername('')
+      setName('')
+      setPassword('')
+      setStatus('Contul ' + result.username + ' este activ. Trimite-i colegului datele de conectare.')
+      await refresh()
+    } catch (error) {
+      setStatus((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <div className="team-workspace">
+    <section className="team-owner"><ShieldCheck aria-hidden="true" /><div>
+      <strong>Tu administrezi accesul</strong><p>Creezi conturile, setezi parolele și alegi modulele permise.</p>
+    </div></section>
+    <section className="team-panel" aria-labelledby="team-create-title">
+      <h2 id="team-create-title">Creează cont de coleg</h2>
+      <form onSubmit={event => void create(event)}><fieldset className="team-fieldset" disabled={busy}>
+        <div className="team-fields">
+          <label>Utilizator<input value={username} onChange={event => setUsername(event.target.value)} minLength={3}
+            maxLength={64} required autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="prenume.nume" /></label>
+          <label>Nume, opțional<input value={name} onChange={event => setName(event.target.value)} maxLength={100} autoComplete="off" /></label>
+          <PasswordField label="Parolă" value={password} onChange={setPassword} />
+          <RoleField value={role} onChange={setRole} />
+        </div>
+        <Modules value={modules} onChange={setModules} />
+        <Button type="submit" disabled={!modules.length}><UserPlus />{busy ? 'Se creează…' : 'Creează contul'}</Button>
+      </fieldset></form>
+      <p className="team-status" role="status">{status}</p>
+      <p className="team-sign-in"><a href="/auth/member-login" target="_blank" rel="noopener">Pagina de conectare pentru colegi</a></p>
+    </section>
+    <section aria-labelledby="members-title">
+      <div className="team-section-heading">
+        <h2 id="members-title">Colegii tăi · {data.members.length}</h2>
+        <Button variant="outline" disabled={loading} onClick={() => void refresh()}><RefreshCw />Reîncarcă</Button>
+      </div>
+      {loading && <p role="status">Se încarcă utilizatorii…</p>}
+      {error && <p role="alert">{error}</p>}
+      {!loading && !error && !data.members.length && <p>Nu ai creat încă niciun cont de coleg.</p>}
+      {data.members.map(member => <MemberCard key={member.id} member={member} refresh={refresh} />)}
+    </section>
+    <section className="team-panel" aria-labelledby="events-title">
+      <h2 id="events-title">Jurnal recent</h2>
+      <ol className="team-journal">{data.events.map(event => {
+        const actor = data.members.find(member => member.id === event.actor)
+        return <li key={event.id}>
+          <strong>{actions[event.action] || event.action}</strong>
+          <span>{event.actor === 'owner' ? 'Proprietar' : actor?.name || actor?.username || 'Colegul'}</span>
+          <time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' })}</time>
+        </li>
+      })}</ol>
+    </section>
+  </div>
 }

@@ -5,7 +5,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from PIL import Image, ImageDraw
 
-from server.render import HEADERS, KEYS, OPS, amount, font, png, text, wrapped
+from server.render import OPS, amount, font, png, text, wrapped
+from server.export_marks import urgent, urgent_badge
 from server.source_render import source_image, combined_image
 
 
@@ -14,17 +15,17 @@ LIGHT = {
     "line":"#d9e2d3","head":"#e8f5e8","stripe":"#f5f6ec","pill":"#e8f5e8",
     "blue":"#e8f5ef","green":"#edf5df","yellow":"#f5f5d6",
     "accent":"#006b65","success":"#147549","success_bg":"#dff0cb",
-    "al":"#255ab7","cu":"#b44c16","hero":"#006b65","hero_ink":"#fff9e9"
+    "al_bg":"#e4eef9","cu_bg":"#fff0df","alert":"#a42620","alert_bg":"#fae6e2","al":"#255ab7","cu":"#b44c16","hero":"#006b65","hero_ink":"#fff9e9"
 }
 DARK = {
     "bg":"#141f1a","paper":"#1e2c24","ink":"#fff9e9","muted":"#c4d2be",
     "line":"#425748","head":"#293b2e","stripe":"#223429","pill":"#293b2e",
     "blue":"#243c32","green":"#293c28","yellow":"#353d26",
     "accent":"#64dbc4","success":"#b6de83","success_bg":"#344b2a",
-    "al":"#9dbdff","cu":"#ffb277","hero":"#0a443d","hero_ink":"#fff9e9"
+    "al_bg":"#25394a","cu_bg":"#493628","alert":"#ffc0b6","alert_bg":"#512d2a","al":"#9dbdff","cu":"#ffb277","hero":"#0a443d","hero_ink":"#fff9e9"
 }
 
-X = [30,69,193,384,516,622,701,780,874,966,1048,1149,1233,1325,1442,1644]
+
 
 
 def label(draw, xy, value, size, color, *, bold=False, width=None, anchor=None):
@@ -55,92 +56,8 @@ def brand(draw, width, stamp, title, palette):
 
 
 def _plan_table_image(plan,theme="light"):
-    p=dict(DARK if theme=="dark" else LIGHT)
-    p["green"]="#493628" if theme=="dark" else "#fff0df"
-    p["yellow"]="#263b32" if theme=="dark" else "#e3f5ea"
-    if plan.get("sourceTable"):return png(source_image(plan,p))
-    al=[r for r in plan["rows"] if r["material"]=="AL"]
-    cu=[r for r in plan["rows"] if r["material"]=="CU"]
-    measure=ImageDraw.Draw(Image.new("RGB",(1,1)))
-    def line_layout(row):
-        product=wrapped(measure,row["product"],12,X[3]-X[2]-13)
-        note=cell_text(row["notes"])
-        notes=wrapped(measure,note,11,X[15]-X[14]-20) if note else []
-        return product,notes,max(31,9+max(len(product),len(notes),1)*15)
-    lines=[line_layout(row) for row in al+cu]
-    body_height=sum(item[2] for item in lines)
-    end=184+body_height+39+16+36+40+42+42
-    height=max(540,end+40)
-    image=Image.new("RGB",(1672,height),p["bg"])
-    d=ImageDraw.Draw(image)
-    stamp=date.fromisoformat(plan["date"]).strftime("%d.%m.%Y")
-    brand(d,1672,stamp,f"PLAN {plan['week'].upper()}",p)
-    d.rounded_rectangle((14,87,1658,height-22),radius=14,fill=p["paper"],outline=p["line"],width=1)
-    d.rectangle((30,104,1644,184),fill=p["head"])
-    for index,head in enumerate(HEADERS):
-        left,right=X[index+1],X[index+2]
-        parts=[line for part in head.split("\n") for line in wrapped(measure,part,13,right-left-8,True)]
-        for n,part in enumerate(parts):
-            label(d,((left+right)/2,144+(n-(len(parts)-1)/2)*18),part,13,p["ink"],bold=True,anchor="mm")
-    y=184
-    positions={"AL":al,"CU":cu}
-    layout_iter=iter(lines)
-
-    def data_rows(material):
-        nonlocal y
-        for i,row in enumerate(positions[material]):
-            product_lines,note_lines,row_h=next(layout_iter)
-            if i%2:d.rectangle((30,y,1644,y+row_h),fill=p["stripe"])
-            if i==0:
-                d.rectangle((30,y,69,y+row_h),fill=p["blue"] if material=="AL" else p["green"])
-                label(d,(39,y+row_h/2),material+":",13,p["ink"],bold=True,anchor="lm")
-            label(d,(X[2]-9,y+row_h/2),row["client"],12,p["ink"],anchor="rm",width=X[2]-X[1]-15)
-            for n,line in enumerate(product_lines):
-                label(d,(X[2]+9,y+(row_h-15*len(product_lines))/2+n*15),line,12,p["ink"])
-            for col,key in enumerate(KEYS):
-                if not row[key]:continue
-                label(d,((X[col+3]+X[col+4])/2,y+row_h/2),amount(row[key]),12,p["ink"],anchor="mm",width=X[col+4]-X[col+3]-8)
-            if note_lines:
-                is_done=row["notes"].strip().lower()=="predat"
-                if is_done:
-                    d.rounded_rectangle((X[14]+10,y+3,X[15]-7,y+row_h-3),radius=13,fill=p["success_bg"])
-                for n,line in enumerate(note_lines):
-                    label(d,((X[14]+X[15])/2,y+(row_h-15*len(note_lines))/2+n*15),line,11,p["success"] if is_done else p["ink"],bold=is_done,anchor="mt",width=X[15]-X[14]-18)
-            y+=row_h
-            d.line((30,y,1644,y),fill=p["line"])
-
-    def band(name,fill,totals=None,height=40):
-        nonlocal y
-        d.rectangle((30,y,1644,y+height),fill=fill)
-        label(d,(42,y+height/2),name,14,p["ink"],bold=True,anchor="lm",width=330)
-        if totals:
-            for key,column in (("planned",3),("handed",4),("wire",5)):
-                label(d,((X[column]+X[column+1])/2,y+height/2),amount(totals[key]),14,p["ink"],bold=True,anchor="mm")
-        y+=height
-
-    data_rows("AL")
-    al_end=y
-    band("TOTAL AL (TONE)",p["blue"],plan["totals"]["AL"],39)
-    y+=16
-    if not cu:
-        d.rectangle((30,y,69,y+36),fill=p["green"])
-        label(d,(41,y+18),"CU:",13,p["ink"],bold=True,anchor="lm")
-        y+=36
-    cu_start=y
-    data_rows("CU")
-    cu_end=y
-    band("TOTAL CU (TONE)",p["green"],plan["totals"]["CU"])
-    a,c=plan["totals"]["AL"],plan["totals"]["CU"]
-    band("TOTAL GENERAL (TONE)",p["yellow"],{k:a[k]+c[k] for k in ("planned","handed","wire")},42)
-    band("INTRĂRI METAL (TONE)",p["head"],None,42)
-    label(d,((X[3]+X[4])/2,y-21),amount(plan["incoming"]),14,p["ink"],bold=True,anchor="mm")
-    for x in X:
-        if x in (X[1],X[2]):
-            d.line((x,104,x,al_end),fill=p["line"])
-            if cu_end>cu_start:d.line((x,cu_start,x,cu_end),fill=p["line"])
-        else:d.line((x,104,x,y),fill=p["line"])
-    d.line((30,184,1644,184),fill=p["line"])
-    return png(image)
+    from server.plan_export import table_image
+    return png(table_image(plan, DARK if theme=="dark" else LIGHT))
 
 
 def plan_image(plan,theme="light",insights=None,section="all",page=0):
@@ -148,13 +65,16 @@ def plan_image(plan,theme="light",insights=None,section="all",page=0):
     from server.plan_analysis import build
     from server.source_render import MAX_PIXELS,SourceRenderError
     p=DARK if theme=="dark" else LIGHT
-    if section not in ("all","summary","table","clients","stock"):raise ValueError("Secțiune invalidă")
+    if section not in ("all","overview","summary","table","clients","stock"):raise ValueError("Secțiune invalidă")
     if section=="table":return _plan_table_image(plan,theme)
     table=Image.open(BytesIO(_plan_table_image(plan,theme))) if section=="all" else None
     if insights is None:
         raw={"rows":[{k:str(v) for k,v in row.items()} for row in plan['rows']]}
         if plan.get('sourceTable'):raw['sourceTable']=plan['sourceTable']
         insights=build(plan,raw)
+    if section=='overview':
+        from server.plan_export import overview_image
+        return overview_image(plan, insights, p)
     if section=='stock':
         from server.section_stock import image
         return image(plan,insights,theme)
@@ -219,10 +139,13 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
     p["green"]="#493628" if theme=="dark" else "#fff0df"
     p["yellow"]="#263b32" if theme=="dark" else "#e3f5ea"
     if forecast.get("sourceTable"):return png(source_image(forecast,p,show_status))
+    with_priority=any(row.get('priority') for row in forecast['rows'])
     columns=(30,75,450,568,686,879,1089,1236,1644) if show_status else (30,75,490,620,750,970,1190,1644)
+    if with_priority:columns=(*columns[:-1],1494,columns[-1])
     keys=["product","km","tons","client","measure"]+(["status"] if show_status else [])+["notes"]
+    if with_priority:keys.append("priority")
     headers={"product":"PRODUS","km":"KM","tons":"TONE","client":"CLIENT",
-             "measure":"MĂSURĂRI","status":"STADIU","notes":"OBSERVAȚII"}
+             "measure":"MĂSURĂRI","status":"STADIU","notes":"OBSERVAȚII","priority":"PRIORITATE"}
     from server.forecast_order import products
     al=products([row for row in forecast["rows"] if row["material"]=="AL"])
     cu=products([row for row in forecast["rows"] if row["material"]=="CU"])
@@ -266,6 +189,8 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
                         d.rounded_rectangle((left+8,y+5,right-8,y+row_height-5),radius=12,
                                             fill=p["success_bg"] if is_done else p["pill"])
                         label(d,((left+right)/2,y+row_height/2),status,12,p["success"] if is_done else p["ink"],bold=True,anchor="mm",width=right-left-23)
+                elif key=="priority" and urgent(row.get(key)):
+                    urgent_badge(d,((left+right)/2,y+row_height/2),p,17)
                 elif key in lines:
                     for n,line in enumerate(lines[key]):
                         label(d,(left+8,y+(row_height-18*len(lines[key]))/2+n*18),line,13,p["ink"],width=right-left-16)
@@ -284,7 +209,7 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
         for key in ("km","tons"):
             index=keys.index(key)
             left,right=columns[index+1],columns[index+2]
-            label(d,((left+right)/2,y+height/2),amount(totals[key]),16,p["ink"],bold=True,anchor="mm")
+            label(d,((left+right)/2,y+height/2),amount(totals[key]),16,p["accent"],bold=True,anchor="mm")
         y+=height
 
     rows("AL",al)

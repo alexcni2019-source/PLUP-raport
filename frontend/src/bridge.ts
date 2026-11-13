@@ -4,7 +4,7 @@ type Controller = { payload:()=>Payload; draft:()=>{payload:Payload;metadata:{id
 declare global {
   interface Window {
     PLUPDashboard:{show:(view:View)=>void;current:()=>View;refreshHistory:()=>Promise<void>}
-    PLUPAccess?:{id:string;role:'owner'|'editor'|'viewer';email:string;name?:string;modules:string[];can:(mode:string,write?:boolean)=>boolean}
+    PLUPAccess?:{id:string;role:'owner'|'editor'|'viewer';username:string;name?:string;modules:string[];can:(mode:string,write?:boolean)=>boolean}
     PLUPFetch:typeof fetch
     PLUPReport:Controller
     PLUPPlan:Controller

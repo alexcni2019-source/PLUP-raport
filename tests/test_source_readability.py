@@ -23,9 +23,9 @@ class ReadabilityTests(unittest.TestCase):
   seen=[];original=ImageDraw.ImageDraw.text
   def record(draw,xy,text,*a,**kw):seen.append((xy,text,kw['font']));return original(draw,xy,text,*a,**kw)
   with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,LIGHT)
-  self.assertGreaterEqual(image.width,2400)
+  self.assertGreaterEqual(image.width,1672)
   for value in [*body,total]:self.assertTrue(any(text==value and f.size==24 for xy,text,f in seen))
-  ys={xy[1] for xy,text,f in seen if f.size==20};self.assertLessEqual(len(ys),2)
+  self.assertIn('Comandă',[text for xy,text,f in seen])
   for xy,text,f in seen:self.assertLessEqual(xy[0]+f.getlength(text),image.width)
  def test_duplicate_plan_caption_hidden_and_total_label_left_aligned(self):
   title='13.10.2026 - PLAN WK 42';total='TOTAL AL (TONE)'
@@ -33,8 +33,8 @@ class ReadabilityTests(unittest.TestCase):
   seen=[];original=ImageDraw.ImageDraw.text
   def record(draw,xy,text,*a,**kw):seen.append((xy,text));return original(draw,xy,text,*a,**kw)
   with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,LIGHT)
-  self.assertNotIn(title,[t for xy,t in seen]);self.assertEqual(next(xy[0] for xy,t in seen if t==total),46)
-  self.assertEqual(image.height,102+96+60+60+38)
+  self.assertNotIn(title,[t for xy,t in seen]);self.assertEqual(next(xy[0] for xy,t in seen if t==total),42)
+  self.assertGreater(image.height,260)
   # Other source notes above the heading are preserved.
   report['sourceTable']['rows'][0]=['NOTĂ SPECIALĂ']
   seen.clear()

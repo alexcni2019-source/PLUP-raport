@@ -407,9 +407,11 @@ class Handler(BaseHTTPRequestHandler):
         if pathname=="/health":
             self.respond(200,b"ok","text/plain; charset=utf-8");return
         if identity.enabled():
-            if pathname in ('/auth/member-login','/invite'):
+            if pathname == '/invite':
+                self.respond(303,b'','text/plain',{'Location':'/auth/member-login'});return
+            if pathname == '/auth/member-login':
                 from server.member_pages import page
-                self.respond(200,page(pathname=='/invite'),'text/html; charset=utf-8');return
+                self.respond(200,page(),'text/html; charset=utf-8');return
             if pathname=='/auth/member.js':
                 self.respond(200,(WEB/'member-login.js').read_bytes(),'text/javascript; charset=utf-8');return
             if pathname=="/auth/style.css":
@@ -428,9 +430,9 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond(403,identity.page(str(exc)),"text/html; charset=utf-8");return
             if pathname != '/api/session' and not self.session():
                 if pathname.startswith('/api/'):
-                    self.error(401,"Conectează-te cu GitHub.")
+                    self.error(401,"Autentificarea este necesară.")
                 else:
-                    try:identity.config();status,message=200,'Acces privat pentru proprietar și colegii invitați.'
+                    try:identity.config();status,message=200,'Acces privat pentru proprietar și colegii cu un cont PLUP.'
                     except ValueError:status,message=503,'Accesul prin browser este în curs de configurare.'
                     self.respond(status,identity.page(message),"text/html; charset=utf-8")
                 return
@@ -526,8 +528,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts=urlsplit(self.path);path=parts.path
-        if identity.enabled() and path in ('/auth/member-login','/auth/invite-preview','/auth/activate'):
-            self.member_auth(path);return
+        if identity.enabled() and path == '/auth/member-login':
+            self.member_auth();return
         if identity.enabled() and path=='/api/login':
             self.error(403,"Conectarea prin parolă este dezactivată. Folosește GitHub.");return
         if identity.enabled() and path=='/auth/logout':
@@ -543,7 +545,7 @@ class Handler(BaseHTTPRequestHandler):
             finally:conn.close()
             identity.logout(self.headers)
             self.respond(200,b'{}','application/json',{'Set-Cookie':[name+'=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0' for name in ('__Host-plup_identity',members.COOKIE)]});return
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import","/api/admin/members/invite","/api/admin/members/update"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import","/api/admin/members/create","/api/admin/members/update"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -552,18 +554,16 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        limit=50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table","/api/inventory/import") else MAX_BYTES
+        limit=4096 if path.startswith('/api/admin/members/') else 50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table","/api/inventory/import") else MAX_BYTES
         if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
             person=self.principal()
-            if path in ('/api/admin/members/invite','/api/admin/members/update'):
+            if path in ('/api/admin/members/create','/api/admin/members/update'):
                 conn=database()
-                try:result=members.issue(conn,body) if path.endswith('/invite') else members.update(conn,body)
+                try:result=members.create(conn,body) if path.endswith('/create') else members.update(conn,body)
                 finally:conn.close()
-                if result.get('token'):
-                    result['url']=identity.config()[0]+'/invite#token='+result.pop('token')
                 self.respond(200,json.dumps(result).encode(),'application/json');return
             scoped=body.get('payload') if path=='/api/smart/draft' and isinstance(body,dict) else body
             if isinstance(scoped,dict) and scoped.get('mode') and not self.permitted(scoped['mode'],path in ('/api/reports','/api/smart/draft')):return
@@ -642,8 +642,8 @@ class Handler(BaseHTTPRequestHandler):
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
                 page=int(params.get("page",[0])[0]);section=params.get("section",["summary"])[0]
                 if report["mode"] in ("plan","forecast"):
-                    if (page!=0 and section not in ("clients","stock")) or section not in (("summary","table","clients","stock") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
-                    image=plan_image(report,theme,plan_insights(report,body,"weekday" in person["modules"]) if section in ("summary","clients","stock") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
+                    if (page!=0 and section not in ("clients","stock")) or section not in (("overview","summary","table","clients","stock") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
+                    image=plan_image(report,theme,plan_insights(report,body,"weekday" in person["modules"]) if section in ("overview","summary","clients","stock") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
                 else:image=production_image(report,page,theme)
             except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
@@ -652,9 +652,12 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.respond(200,json.dumps(serialize(report),ensure_ascii=False).encode(),"application/json; charset=utf-8")
 
-    def member_auth(self,path):
-        origin=self.headers.get('Origin')
-        if not origin or urlsplit(origin).netloc!=self.headers.get('Host'):
+    def member_auth(self):
+        origin = self.headers.get('Origin')
+        same_origin = self.headers.get('Sec-Fetch-Site') == 'same-origin'
+        if (origin is not None and urlsplit(origin).netloc != self.headers.get('Host')) or (
+            origin is None and not same_origin
+        ):
             self.error(403,'Origine neautorizată.');return
         if self.headers.get('Content-Type','').split(';')[0].strip().lower()!='application/json':
             self.error(415,'Este necesar application/json.');return
@@ -664,14 +667,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body=json.loads(self.rfile.read(int(length)));conn=database()
             try:
-                if path=='/auth/invite-preview':
-                    members.throttle('invite:'+self.client_address[0],100)
-                    row=members.invite(conn,body.get('token') if isinstance(body,dict) else None)
-                    result=members.public(row);result['expires']=row['expires'];token=None
-                elif path=='/auth/activate':
-                    members.throttle('activate:'+self.client_address[0],30)
-                    token=members.activate(conn,body);result={'ok':True}
-                else:token=members.login(conn,body,self.client_address[0]);result={'ok':True}
+                token=members.login(conn,body,self.client_address[0]);result={'ok':True}
             finally:conn.close()
             headers=None
             if token:

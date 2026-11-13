@@ -18,11 +18,11 @@ class Canvas:
         self.text(60,42,'NRG Cables',40,True);self.text(345,50,'PLUP Department',28,color=p['muted'])
         self.text(1940,48,stamp,32,True,p['muted'],'rt')
         self.text(60,144,title,60,True);self.y=260
-    def metric(self,x,y,w,label,value,note='',hero=False):
+    def metric(self,x,y,w,label,value,note='',hero=False,accent=None):
         p=self.p;ink=p['hero_ink'] if hero else p['ink']
         self.panel((x,y,x+w,y+218),p['hero'] if hero else p['paper'])
         self.text(x+29,y+25,label,30,True,ink if hero else p['muted'])
-        self.text(x+29,y+78,amount(value,2)+' t',78,True,ink)
+        self.text(x+29,y+78,amount(value,2)+' t',78,True,accent or ink)
         if note:self.text(x+29,y+170,note,26,color=ink if hero else p['muted'])
     def materials(self,v):
         p=self.p;w=928
@@ -30,14 +30,14 @@ class Canvas:
             x=60+i*952;y=self.y
             self.panel((x,y,x+w,y+220),p['head'] if material=='AL' else p['paper'])
             self.text(x+30,y+25,material+' · '+label,34,True,color)
-            self.text(x+30,y+88,amount(v[key],2)+' t',74,True)
+            self.text(x+30,y+88,amount(v[key],2)+' t',74,True,color)
             self.text(x+w-29,y+167,'Backlog '+amount(v[back],2)+' t',28,color=p['muted'],anchor='rt')
         self.y+=248
     def summary(self,t):
         for i,(label,key,note) in enumerate([('Total predat','handed','AL + CU'),('Backlog','backlog','Din materialul predat'),('Total procesat','processed','Predat + deșeu')]):
-            self.metric(60+i*634.66,self.y,610.66,label,t[key],note,i==0)
+            self.metric(60+i*634.66,self.y,610.66,label,t[key],note,i==0,self.p['accent'] if i==1 else None)
         self.y+=246
-    def table(self,headers,rows,widths):
+    def table(self,headers,rows,widths,emphasis=None):
         p=self.p;top=self.y;layouts=[wrapped(self.draw,h,30,w-36,True) for h,w in zip(headers,widths)]
         hh=32+40*max(map(len,layouts));self.draw.rectangle((60,top,1940,top+hh),fill=p['head'])
         x=60
@@ -45,12 +45,13 @@ class Canvas:
             for j,line in enumerate(lines):self.text(x+18,top+16+j*40,line,30,True)
             x+=w
         self.y+=hh
+        emphasis=emphasis or {}
         for i,row in enumerate(rows):
-            lines=[wrapped(self.draw,value,30,w-38) for value,w in zip(row,widths)];height=max(76,30+42*max(map(len,lines)))
+            lines=[wrapped(self.draw,value,30,w-38,index in emphasis) for index,(value,w) in enumerate(zip(row,widths))];height=max(76,30+42*max(map(len,lines)))
             self.draw.rectangle((60,self.y,1940,self.y+height),fill=p['paper'] if i%2==0 else p['stripe'])
             x=60
-            for cell,w in zip(lines,widths):
-                for j,line in enumerate(cell):self.text(x+18,self.y+15+j*42,line,30)
+            for index,(cell,w) in enumerate(zip(lines,widths)):
+                for j,line in enumerate(cell):self.text(x+18,self.y+15+j*42,line,30,index in emphasis,emphasis.get(index))
                 x+=w
             self.y+=height;self.draw.line((60,self.y,1940,self.y),fill=p['line'])
         self.y+=35
@@ -94,7 +95,8 @@ def production_image(report,page=0,theme='light'):
         rows=[]
         for day,name in zip(days,['Vineri','Sâmbătă','Duminică']):
             d=day['values'];rows.append([name+'\n'+date.fromisoformat(day['date']).strftime('%d.%m.%Y'),amount(d['al'],2)+' t',amount(d['cu'],2)+' t',amount(day['backlog'],2)+' t',amount(day['waste'],2)+' t',amount(day['processed'],2)+' t',amount(day['percent'],1)+'%'])
-        canvas.table(['Zi / Data','Predat AL','Predat CU','Backlog','Deșeu','Procesat','Deșeu %'],rows,[350,255,255,255,255,255,255])
+        canvas.table(['Zi / Data','Predat AL','Predat CU','Backlog','Deșeu','Procesat','Deșeu %'],rows,[350,255,255,255,255,255,255],
+                     {1:p['al'],2:p['cu'],3:p['accent'],6:p['success']})
     canvas.charts(t,v)
     extras=last['extras'];rows=[]
     for label,key in [*zip(OPS_LABELS,OPS),('Observații','obs')]:

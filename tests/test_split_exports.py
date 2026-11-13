@@ -17,7 +17,9 @@ class SplitExportTests(unittest.TestCase):
    with patch.object(corporate,'_forecast_table_image',side_effect=AssertionError('Summary must not render table')):
     seen,image=self.text_render(lambda:corporate.forecast_image(report,theme,False,'summary'))
    self.assertIn('LISTA DE EXECUȚIE · SCHIMBUL 2',seen);self.assertIn('DISTRIBUȚIA TONELOR PE CLIENȚI',seen);self.assertNotIn('STADIU',seen);self.assertEqual(image.width,1672)
+   self.assertIn('URGENT',seen)
    seen,_=self.text_render(lambda:corporate.forecast_image(report,theme,False,'table'))
+   self.assertIn('URGENT',seen)
    self.assertNotIn('LISTA DE EXECUȚIE · SCHIMBUL 2',seen);self.assertNotIn('DISTRIBUȚIA TONELOR PE CLIENȚI',seen);self.assertNotIn('STADIU',seen);self.assertNotIn('SCH2',seen);self.assertIn('CABLU TEST',seen)
  def test_plan_summary_does_not_render_product_table(self):
   raw={'mode':'plan','date':'2026-10-12','week':'w42','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','product':'CABLU TEST','client':'CLIENT TEST','planned':'10','handed':'2','bar':'3'}]}
@@ -28,3 +30,7 @@ class SplitExportTests(unittest.TestCase):
    self.assertIn('SITUAȚIA PE FLUX · KM',seen);self.assertNotIn('CABLU TEST',seen);self.assertEqual(image.width,1672)
    seen,_=self.text_render(lambda:corporate.plan_image(report,theme,insights,'table'))
    self.assertIn('CABLU TEST',seen);self.assertNotIn('SITUAȚIA PE FLUX · KM',seen)
+   seen,mobile=self.text_render(lambda:corporate.plan_image(report,theme,insights,'overview'))
+   self.assertEqual(mobile.width,840)
+   self.assertIn('Rest de predat',seen)
+   self.assertIn('AL · Aluminiu',seen)

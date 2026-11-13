@@ -4,7 +4,8 @@ from io import BytesIO
 import re
 from PIL import Image, ImageDraw
 from server.render import font, png
-from server.km_completion import highlighted
+from server.km_completion import norm
+from server.export_marks import numeric, urgent, urgent_badge, urgent_width
 
 MAX_PIXELS=40_000_000
 
@@ -13,6 +14,9 @@ class SourceRenderError(ValueError):
 
 def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  from server.corporate import brand
+ if report['mode']=='plan':
+  from server.plan_export import table_image
+  return table_image(report, palette, with_brand, stamp)
  table=report['sourceTable'];rows=table['rows'];header=table['header'];p=palette
  if report['mode']=='forecast':
   from server.forecast_order import source_rows
@@ -26,7 +30,11 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  columns=[i for i in range(width) if i not in hidden]
  if not columns:raise SourceRenderError('Nu există coloane de afișat.')
  measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(24);head_font=font(20,True)
- highlights=highlighted(table) if report['mode']=='plan' else {}
+ priority=table['columns'].get('priority')
+ if report['mode']=='forecast' and priority is None:
+  candidates=[i for i,value in enumerate(rows[header]) if norm(value) in ('prioritate','priority','urgenta')]
+  if len(candidates)==1:priority=candidates[0]
+ def is_total(row):return norm(' '.join(row[:3])).startswith(('total','intrari'))
  def header_lines(value):
   words=str(value).split()
   if len(words)<2:return [' '.join(words)] if words else []
@@ -41,6 +49,10 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   heading=str(rows[header][col]) if col<len(rows[header]) else ''
   header_width=max((measure.textlength(t,font=head_font) for t in header_lines(heading)),default=0)
   body_width=max((measure.textlength(v,font=body_font) for v in values),default=0)
+  bold_width=max((measure.textlength(body_line(row[col]),font=font(24,True))
+                  for ri,row in enumerate(rows) if ri>header and col<len(row) and is_total(row)),default=0)
+  body_width=max(body_width,bold_width)
+  if col==priority:body_width=max(body_width,urgent_width(measure,24))
   minimum=300 if key=='product' else 150 if key=='client' else 66 if key=='material' else 110
   widths.append(max(minimum,int(header_width)+33,int(body_width)+33))
  content=sum(widths)
@@ -57,9 +69,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
    for c,w in zip(columns,widths):
     value=row[c] if c<len(row) else ''
     layout[c]=([' '.join(str(value).split())] if measure.textlength(' '.join(str(value).split()),font=head_font)<=w-32 else header_lines(value)) if ri==header else [body_line(value)] if str(value)!='' else []
-  redundant_title=with_brand and report['mode']=='plan' and ri<header and len(populated)==1 and re.fullmatch(r'\s*\d{1,2}[./]\d{1,2}[./]\d{4}\s*[-–·:]?\s*PLAN\s*(?:W[K]?\s*\d{1,2})?\s*',body_line(populated[0][1]),re.I)
-  blank_prefix=with_brand and report['mode']=='plan' and ri<header and not populated
-  layouts.append(layout);heights.append(0 if redundant_title or blank_prefix else max(96 if ri==header else 60,24+max(map(len,layout.values()),default=0)*(28 if ri==header else 32)))
+  layouts.append(layout);heights.append(max(96 if ri==header else 60,24+max(map(len,layout.values()),default=0)*(28 if ri==header else 32)))
  image_height=start+sum(heights)+38
  if image_width>14000 or image_width*image_height>MAX_PIXELS:raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
  image=Image.new('RGB',(image_width,image_height),p['bg']);d=ImageDraw.Draw(image)
@@ -73,7 +83,7 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   if not height:continue
   first=' '.join(row[:3]).strip().upper();total=first.startswith(('TOTAL','INTRARI','INTRĂRI'))
   fill=p['head'] if ri==header else p['yellow'] if total else p['stripe'] if ri%2 else p['paper']
-  if report['mode'] in ('plan','forecast') and total:
+  if report['mode']=='forecast' and total:
    if first.startswith('TOTAL AL') and not first.startswith(('TOTAL AL +','TOTAL AL+')):fill=p['blue']
    elif first.startswith('TOTAL CU'):fill=p['green']
   d.rectangle((30,y,image_width-30,y+height),fill=fill)
@@ -85,17 +95,18 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   else:
    x=30
    for ci,w in zip(columns,widths):
-    value=row[ci] if ci<len(row) else '';f=head_font if ri==header else body_font
-    if report['mode'] in ('plan','forecast') and ri!=header and ci==table['columns'].get('material',0):
+    value=row[ci] if ci<len(row) else '';f=head_font if ri==header else font(24,total)
+    if report['mode']=='forecast' and ri!=header and ci==table['columns'].get('material',0):
      token=str(value).strip().upper().rstrip(':')
      if token in ('AL','CU'):d.rectangle((x,y,x+w,y+height),fill=p['blue'] if token=='AL' else p['green'])
     if report['mode']=='forecast' and ri>header and ci==table['columns'].get('status') and re.match(r'^PREDAT(?:\s|$)',str(value).strip(),re.I):d.rectangle((x,y,x+w,y+height),fill=p['success_bg'])
-    if ci in highlights.get(ri,set()):d.rectangle((x,y,x+w,y+height),fill=p['success_bg'])
-    cell_lines=layouts[ri].get(ci,[])
+    marked=ri>header and not total and ci==priority and urgent(value)
+    if marked:urgent_badge(d,(x+w/2,y+height/2),p)
+    cell_lines=[] if marked else layouts[ri].get(ci,[])
     for n,line in enumerate(cell_lines):
-     numeric=bool(re.fullmatch(r'[-+]?\d+(?:[.,]\d+)?(?:\s*(?:t|km|%))?',line.strip(),re.I))
-     left=x+16 if total and ri!=header and not numeric else x+(w-d.textlength(line,font=f))/2
-     d.text((left,y+(height-28*len(cell_lines))/2+n*28 if ri==header else y+(height-32)/2+n*32),line,font=f,fill=p['success'] if ci in highlights.get(ri,set()) else p['ink'])
+     left=x+16 if total and not numeric(line) else x+(w-d.textlength(line,font=f))/2
+     color=p['accent'] if total and numeric(line) else p['ink']
+     d.text((left,y+(height-28*len(cell_lines))/2+n*28 if ri==header else y+(height-32)/2+n*32),line,font=f,fill=color)
     d.line((x,y,x,y+height),fill=p['line']);x+=w
    d.line((x,y,x,y+height),fill=p['line'])
   d.line((30,y+height,image_width-30,y+height),fill=p['line']);y+=height

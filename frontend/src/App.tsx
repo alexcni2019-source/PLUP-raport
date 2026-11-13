@@ -13,7 +13,7 @@ import Team from './Team'
 import type { Payload, View } from './bridge'
 
 const navigation: {id:View;label:string;icon:typeof Home}[]=[{id:'dashboard',label:'Acasă',icon:Home},{id:'weekday',label:'Producție',icon:Factory},{id:'plan',label:'Plan',icon:Table2},{id:'forecast',label:'Previz',icon:TrendingUp},{id:'history',label:'Istoric',icon:History},{id:'team',label:'Echipă',icon:Users}]
-const titles:Record<View,[string,string]>={dashboard:['Spațiul tău de lucru','Rapoarte, producție și planificare.'],weekday:['Raport de producție','Completează și verifică separat valorile pentru aluminiu și cupru.'],weekend:['Raport pentru trei zile','Vineri, sâmbătă și duminică, cu totalul perioadei.'],plan:['Plan de producție','Produse, clienți și stadii, separate pe material.'],forecast:['Previz zilnic','Cantități, clienți și stadii de producție.'],history:['Istoric rapoarte','Deschide și consultă rapoartele salvate.'],team:['Echipă și acces','Invitații individuale, roluri și controlul accesului.']}
+const titles:Record<View,[string,string]>={dashboard:['Spațiul tău de lucru','Rapoarte, producție și planificare.'],weekday:['Raport de producție','Completează și verifică separat valorile pentru aluminiu și cupru.'],weekend:['Raport pentru trei zile','Vineri, sâmbătă și duminică, cu totalul perioadei.'],plan:['Plan de producție','Produse, clienți și stadii, separate pe material.'],forecast:['Previz zilnic','Cantități, clienți și stadii de producție.'],history:['Istoric rapoarte','Deschide și consultă rapoartele salvate.'],team:['Echipă și acces','Conturi individuale, roluri și controlul accesului.']}
 const legacyIds=['dashboard-view','report-toolbar','production-summary','report-view','plan-view','forecast-view','history-view']
 
 function useLiveState(){
