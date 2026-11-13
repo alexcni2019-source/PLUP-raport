@@ -1,0 +1,17 @@
+FROM docker.io/tailscale/tailscale:stable AS tailscale
+
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PLUP_HOST=0.0.0.0 PORT=8000 PLUP_DB_PATH=/data/plup.sqlite3
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core gosu tini tesseract-ocr tesseract-ocr-eng tesseract-ocr-ron && rm -rf /var/lib/apt/lists/*
+COPY --from=tailscale /usr/local/bin/tailscale /usr/local/bin/tailscale
+COPY --from=tailscale /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && mkdir /data && chown 10001:10001 /data
+COPY web ./web
+COPY server ./server
+COPY entrypoint-private.sh ./entrypoint-private.sh
+RUN chmod 755 ./entrypoint-private.sh
+USER 10001:10001
+EXPOSE 8000
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint-private.sh"]

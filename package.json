@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "bootstrap": "^5.3.8"
+  },
+  "scripts": {
+    "build:ui": "npm --prefix frontend run build",
+    "check:ui": "npm --prefix frontend run check"
+  }
+}
