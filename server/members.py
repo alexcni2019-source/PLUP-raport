@@ -12,7 +12,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from server import smart
+from server import notifications, smart
 
 MODES = ('weekday', 'weekend', 'plan', 'forecast')
 COOKIE = '__Host-plup_member'
@@ -78,8 +78,10 @@ def principal(path, token):
 
 
 def event(conn, actor, action, target, detail=None):
+    detail = detail or {}
     conn.execute('INSERT INTO access_events(created_at,actor,action,target,detail) VALUES (?,?,?,?,?)',
-                 (smart.stamp(), actor, action, target, json.dumps(detail or {}, ensure_ascii=False)))
+                 (smart.stamp(), actor, action, target, json.dumps(detail, ensure_ascii=False)))
+    notifications.for_event(conn, actor, action, detail)
 
 
 def can_write(conn, actor, mode):
@@ -189,7 +191,7 @@ def throttle(key,limit=10):
         FAILURES.setdefault(key, []).append(now)
 
 
-def login(conn, body, ip):
+def login(conn, body, ip, device=None):
     throttle('ip:'+ip,100)
     if not isinstance(body, dict):
         raise ValueError('Utilizator sau parolă incorectă.')
@@ -211,7 +213,7 @@ def login(conn, body, ip):
         if not current or not current['active'] or current['password_hash'] != encoded:
             raise ValueError('Utilizator sau parolă incorectă.')
         token = new_session(conn, row['id'])
-        event(conn, row['id'], 'login', row['id'])
+        event(conn, row['id'], 'login', row['id'], {'device': device} if device else None)
     return token
 
 

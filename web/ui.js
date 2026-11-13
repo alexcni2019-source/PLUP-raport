@@ -29,6 +29,11 @@
     document.dispatchEvent(new CustomEvent('plup:state',{detail:{mode,saved:!!submitted}}));
   }
   window.PLUPUI={clearImages(node){const urls=new Set([...node.querySelectorAll('img,a')].map(n=>n.src||n.href).filter(u=>u?.startsWith('blob:')));urls.forEach(u=>URL.revokeObjectURL(u));node.replaceChildren();},markClean,isDirty:mode=>dirty.has(mode),markDirty,confirmReplace(mode){return !dirty.has(mode)||window.confirm('Ai modificări nesalvate în acest formular. Le înlocuiești cu un alt raport?');}};
+  window.PLUPUI.activity=(action,mode)=>{
+    if(!window.PLUPAccess || window.PLUPAccess.role==='owner')return;
+    void window.PLUPFetch('/api/activity',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,mode}),keepalive:true}).catch(()=>{});
+  };
   window.addEventListener('beforeunload',event=>{if(dirty.size){event.preventDefault();event.returnValue='';}});
   const observed=new WeakSet();
   function observeButtons(){

@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { RefreshCw, ShieldCheck, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import PushSettings from './PushSettings'
 
 type Role = 'editor' | 'viewer'
 type Member = { id: string; username: string; name: string; role: Role; modules: string[]; active: boolean; activated: boolean }
-type AccessEvent = { id: number; created_at: string; actor: string; action: string }
+type AccessEvent = { id: number; created_at: string; actor: string; action: string; detail: string }
 type Listing = { members: Member[]; events: AccessEvent[] }
 const groups = [
   { label: 'Producție · o zi și trei zile', modes: ['weekday', 'weekend'] },
@@ -17,6 +18,9 @@ const actions: Record<string, string> = {
   'member-create': 'Cont creat', 'password-set': 'Parolă setată', permissions: 'Permisiuni schimbate',
   revoke: 'Acces revocat', login: 'Conectare', logout: 'Deconectare',
   invite: 'Invitație creată', reissue: 'Acces resetat', activate: 'Cont activat',
+  'report-generate': 'PNG generat', 'report-download': 'PNG descărcat', 'report-open': 'Raport deschis',
+  'report-check': 'Raport verificat', 'image-import': 'Imagine citită', 'table-import': 'Tabel citit',
+  'table-apply': 'Tabel aplicat', 'inventory-import': 'Inventar importat',
   'report-create': 'Raport creat', 'report-edit': 'Raport modificat', 'report-restore': 'Versiune restaurată',
 }
 
@@ -166,6 +170,7 @@ export default function Team() {
     <section className="team-owner"><ShieldCheck aria-hidden="true" /><div>
       <strong>Tu administrezi accesul</strong><p>Creezi conturile, setezi parolele și alegi modulele permise.</p>
     </div></section>
+    <PushSettings />
     <section className="team-panel" aria-labelledby="team-create-title">
       <h2 id="team-create-title">Creează cont de coleg</h2>
       <form onSubmit={event => void create(event)}><fieldset className="team-fieldset" disabled={busy}>
@@ -196,8 +201,10 @@ export default function Team() {
       <h2 id="events-title">Jurnal recent</h2>
       <ol className="team-journal">{data.events.map(event => {
         const actor = data.members.find(member => member.id === event.actor)
+        const detail = JSON.parse(event.detail) as { device?: string; mode?: string }
+        const module = groups.find(group => detail.mode && group.modes.includes(detail.mode))?.label
         return <li key={event.id}>
-          <strong>{actions[event.action] || event.action}</strong>
+          <strong>{actions[event.action] || event.action}{(detail.device || module) && <small> · {detail.device || module}</small>}</strong>
           <span>{event.actor === 'owner' ? 'Proprietar' : actor?.name || actor?.username || 'Colegul'}</span>
           <time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' })}</time>
         </li>

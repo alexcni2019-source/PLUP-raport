@@ -33,7 +33,7 @@
  async function read(suffix,body){
   const node=$('excel-status-'+suffix),attempt=stage(suffix);node.textContent='Se citesc celulele…';
   try{
-   const response=await window.PLUPFetch('/api/smart/table',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}),data=await response.json();
+   const response=await window.PLUPFetch('/api/smart/table',{method:'POST',headers:{'Content-Type':'application/json','X-PLUP-Module':modeFor(suffix)},credentials:'same-origin',body:JSON.stringify(body)}),data=await response.json();
    if(state.get(suffix)!==attempt)return;
    if(!response.ok)throw Error(data.error||'Tabel invalid.');
    Object.assign(attempt,{data,sheet:0,header:0,readText:body.text??null});
@@ -133,6 +133,7 @@
   const review=keep||suffix==='report'?[]:rows.flatMap((r,i)=>Object.keys(r).filter(k=>k!=='material').map(k=>i+':'+k));
   ctrl(suffix).restoreDraft({payload,metadata:{id:null,needsReview:!keep&&suffix!=='report',review}});
   window.PLUPUI.markDirty(mode);window.PLUPSmart.clearImport(mode);window.PLUPSmart.changed(mode);
+  window.PLUPUI.activity('table-apply',mode);
   $('excel-status-'+suffix).textContent=keep?'Tabelul complet este păstrat. Verifică celulele de mai jos, apoi salvează sau generează PNG.':'Date aplicate în șablonul standard. Verifică înainte de generare.';
  }
  document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.discardTable){discard(b.dataset.discardTable);return;}if(b.dataset.template){const suffix=b.dataset.template,fields=suffix==='report'?configs.report.slice(0,7):configs[suffix],text=fields.map(([,label])=>label).join('\t');try{await navigator.clipboard.writeText(text);$('excel-status-'+suffix).textContent='Antet copiat. Lipește-l în Excel și completează rândurile sub el.';}catch{$('excel-paste-'+suffix).value=text;$('excel-paste-'+suffix).focus();$('excel-paste-'+suffix).select();$('excel-status-'+suffix).textContent='Antet selectat. Copiază-l și lipește-l în Excel.';}}if(b.dataset.readTable)await read(b.dataset.readTable,{text:$('excel-paste-'+b.dataset.readTable).value});if(b.dataset.applyTable){try{apply(b.dataset.applyTable);}catch(error){$('excel-status-'+b.dataset.applyTable).textContent=error.message;}}});

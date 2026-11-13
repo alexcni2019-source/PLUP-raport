@@ -38,7 +38,10 @@ class SourceTableTests(unittest.TestCase):
    for theme in ('light','dark'):
     drawn.clear()
     with patch.object(ImageDraw.ImageDraw,'text',record):image=renderer(app.validate_report(fixture(mode)),theme)
-    self.assertIn('KM PORNITI',drawn);self.assertIn('KM PREDATI',drawn);self.assertIn('2,766',drawn);self.assertIn('0',drawn);self.assertIn('Text complet',drawn)
+    for heading in (('Porniți','Predați','Livrare (km)') if mode=='plan' else ('KM PORNITI','KM PREDATI')):
+     self.assertIn(heading,drawn)
+    for value in ('08.10.2026 - TABEL','2,766','0','Text complet'):
+     self.assertIn(value,drawn)
     self.assertGreaterEqual(Image.open(BytesIO(image)).width,1672)
  def test_source_only_and_production_charts_keep_custom_columns(self):
   table=fixture()['sourceTable'];table['columns']={};table['records']=[]

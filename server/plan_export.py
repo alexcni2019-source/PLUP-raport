@@ -94,8 +94,8 @@ def table_image(plan, palette, with_brand=True, stamp=None):
         keys.append(key)
         labels.append(label)
         groups.append(group)
-        widths.append({'material': 58, 'client': 200, 'product': 385, 'notes': 370,
-                       'planned': 133, 'remaining': 137}.get(key, 105 if label else 60))
+        widths.append({'material': 96, 'client': 200, 'product': 385, 'notes': 370,
+                       'planned': 133, 'remaining': 137}.get(key, 190 if label and key is None else 105 if label else 60))
     width = max(1672, sum(widths) + 60)
     if width > sum(widths) + 60:
         widths[keys.index('product') if 'product' in keys else 0] += width - sum(widths) - 60
@@ -103,12 +103,16 @@ def table_image(plan, palette, with_brand=True, stamp=None):
     highlights = highlighted(source)
     material_by_row = {item['row']: item['material'] for item in source.get('records', [])}
     layouts = []
+    captions = []
     current_material = None
     for index, row in enumerate(rows):
         if index == header:
             continue
         nonempty = [cell for cell in row if cell.strip()]
         if index < header and (not nonempty or (with_brand and len(nonempty) == 1 and DATE_TITLE.fullmatch(nonempty[0].strip()))):
+            continue
+        if index < header and len(nonempty) == 1:
+            captions.extend(wrapped(measure, nonempty[0], 24, width - 86))
             continue
         kind = row_kind(row)
         total = kind.startswith(('total', 'intrari'))
@@ -148,7 +152,8 @@ def table_image(plan, palette, with_brand=True, stamp=None):
         group_runs.append((group,start_col,end_col,lines))
     group_height = 16 + 25*max((len(lines) for _,_,_,lines in group_runs),default=0) if any(groups) else 0
     start = 102 if with_brand else 20
-    height = start + group_height + header_height + sum(h+(40 if m else 0) for _,_,_,m,_,_,h,_ in layouts) + 75
+    caption_height = 20 + 31*len(captions) if captions else 0
+    height = start + caption_height + group_height + header_height + sum(h+(40 if m else 0) for _,_,_,m,_,_,h,_ in layouts) + 75
     if width * height > MAX_PIXELS:
         raise SourceRenderError('Tabelul este prea mare pentru o singură imagine lizibilă. Împarte-l în două rapoarte.')
     image = Image.new('RGB', (width,height), palette['bg'])
@@ -161,6 +166,9 @@ def table_image(plan, palette, with_brand=True, stamp=None):
     for w in widths:
         xs.append(xs[-1]+w)
     y = start
+    for index,line in enumerate(captions):
+        d.text((width/2,y+10+index*31),line,font=font(24),fill=palette['muted'],anchor='mt')
+    y += caption_height
     if group_height:
         for group,first,last,lines in group_runs:
             left, right = xs[first], xs[last]

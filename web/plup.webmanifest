@@ -1,0 +1,13 @@
+{
+  "id": "/",
+  "name": "NRG Cables · PLUP",
+  "short_name": "PLUP",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#006b65",
+  "background_color": "#fffdf1",
+  "icons": [
+    { "src": "/plup-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

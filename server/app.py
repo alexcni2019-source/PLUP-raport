@@ -1,6 +1,7 @@
 """Private PLUP report API with persisted reports, drafts and versions. Run behind an authenticated HTTPS reverse proxy."""
 from __future__ import annotations
 
+from contextlib import closing
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,7 +17,7 @@ import hmac
 import time
 from urllib.parse import unquote, urlsplit
 from urllib.parse import parse_qs
-from server import smart, table_import, identity, members
+from server import smart, table_import, identity, members, notifications
 from server.corporate import plan_image, production_image, forecast_image
 from server import source_table, plan_analysis, forecast_work
 from server.source_render import SourceRenderError
@@ -39,7 +40,7 @@ SESSION_SECRET = os.environ.get("PLUP_SESSION_SECRET", "")
 LOGIN_FAILURES = {}
 MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".ico": "image/x-icon", ".ttf": "font/ttf"}
 SECURITY = {
-    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
@@ -226,6 +227,7 @@ def database():
     conn.execute("CREATE TABLE IF NOT EXISTS plan_snapshots (report_date TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     smart.bootstrap(conn)
     members.bootstrap(conn)
+    notifications.bootstrap(conn)
     return conn
 
 
@@ -285,7 +287,7 @@ def save_report(payload,actor='owner'):
             record["version"]=smart.revision(conn,record["id"],payload,"create")
             if actor=='owner':conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
             else:conn.execute("DELETE FROM member_drafts WHERE member_id=? AND mode=?",(actor,item["mode"]))
-            members.event(conn,actor,'report-create',record['id'],{'mode':item['mode'],'version':record['version']})
+            members.event(conn,actor,'report-create',record['id'],{'mode':item['mode'],'date':item['date'],'version':record['version']})
     finally:conn.close()
     return record
 
@@ -310,7 +312,7 @@ def update_report(identifier, payload, expected=None, action="edit", actor="owne
             version=smart.revision(conn,identifier,payload,action)
             if actor=='owner':conn.execute("DELETE FROM drafts WHERE mode=?",(item["mode"],))
             else:conn.execute("DELETE FROM member_drafts WHERE member_id=? AND mode=?",(actor,item["mode"]))
-            members.event(conn,actor,'report-'+action,identifier,{'mode':item['mode'],'version':version})
+            members.event(conn,actor,'report-'+action,identifier,{'mode':item['mode'],'date':item['date'],'version':version})
     finally:conn.close()
     return {"id":identifier,"mode":item["mode"],"date":item["date"],"version":version}
 
@@ -325,6 +327,17 @@ def serialize(result: dict) -> dict:
             return [convert(value) for value in obj]
         return obj
     return convert(result)
+
+
+def client_device(headers):
+    agent = headers.get('User-Agent', '').lower()
+    if 'ipad' in agent or ('android' in agent and 'mobile' not in agent):
+        return 'Tabletă'
+    if headers.get('Sec-CH-UA-Mobile') == '?1' or any(token in agent for token in ('iphone', 'android', 'mobile')):
+        return 'Telefon'
+    if any(token in agent for token in ('windows', 'macintosh', 'linux', 'cros')):
+        return 'Desktop'
+    return None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -402,10 +415,32 @@ class Handler(BaseHTTPRequestHandler):
                 self.error(403,"Sesiune invalidă. Reîncarcă pagina.");return False
         return True
 
+    def colleague_event(self, person, action, target='', detail=None):
+        if not person or person['id'] == 'owner':
+            return
+        try:
+            with closing(database()) as conn, conn:
+                if action == 'report-generate' and target:
+                    conn.execute('BEGIN IMMEDIATE')
+                    if conn.execute(
+                        "SELECT 1 FROM access_events WHERE actor=? AND target=? AND action='report-generate'",
+                        (person['id'], target),
+                    ).fetchone():
+                        return
+                members.event(conn, person['id'], action, target, detail)
+        except sqlite3.Error:
+            print('PLUP could not record colleague activity', flush=True)
+
     def do_GET(self):
         pathname=unquote(urlsplit(self.path).path)
         if pathname=="/health":
             self.respond(200,b"ok","text/plain; charset=utf-8");return
+        push_assets = {
+            '/push-worker.js': 'text/javascript', '/plup.webmanifest': 'application/manifest+json',
+            '/plup-icon.svg': 'image/svg+xml',
+        }
+        if pathname in push_assets:
+            self.respond(200, (WEB / pathname[1:]).read_bytes(), push_assets[pathname]);return
         if identity.enabled():
             if pathname == '/invite':
                 self.respond(303,b'','text/plain',{'Location':'/auth/member-login'});return
@@ -440,6 +475,11 @@ class Handler(BaseHTTPRequestHandler):
             token=self.session()
             csrf=hmac.new(SESSION_SECRET.encode(),("csrf:"+token).encode(),hashlib.sha256).hexdigest() if (PASSWORD or identity.enabled()) and token else ""
             self.respond(200,json.dumps({"authenticated":bool(token),"csrf":csrf,"provider":("github" if (self.principal() and self.principal()['role']=='owner') or (not self.principal() and not identity.cookie(self.headers,members.COOKIE)) else "email") if identity.enabled() else "password","user":self.principal()}).encode(),"application/json; charset=utf-8");return
+        if pathname == '/api/admin/push':
+            if not self.authorize():return
+            with closing(database()) as conn:
+                result = {'publicKey': notifications.public_key(conn)}
+            self.respond(200, json.dumps(result).encode(), 'application/json');return
         if pathname=='/api/admin/members':
             if not self.authorize() or not self.owner_only():return
             conn=database()
@@ -512,6 +552,7 @@ class Handler(BaseHTTPRequestHandler):
             result=dict(record);result["payload"]=json.loads(result["payload"]);conn=database()
             try:result["version"]=smart.latest_version(conn,identifier)
             finally:conn.close()
+            self.colleague_event(self.principal(), 'report-open', identifier, {'mode': record['mode']})
             self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
         if pathname == "/":pathname="/index.html"
         if pathname.startswith("/api/"):
@@ -533,8 +574,7 @@ class Handler(BaseHTTPRequestHandler):
         if identity.enabled() and path=='/api/login':
             self.error(403,"Conectarea prin parolă este dezactivată. Folosește GitHub.");return
         if identity.enabled() and path=='/auth/logout':
-            origin=self.headers.get('Origin')
-            if not origin or urlsplit(origin).netloc != self.headers.get('Host'):
+            if not self.same_origin():
                 self.error(403,"Origine neautorizată.");return
             if not self.authorize(mutation=True):return
             person=self.principal();conn=database()
@@ -545,7 +585,7 @@ class Handler(BaseHTTPRequestHandler):
             finally:conn.close()
             identity.logout(self.headers)
             self.respond(200,b'{}','application/json',{'Set-Cookie':[name+'=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0' for name in ('__Host-plup_identity',members.COOKIE)]});return
-        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import","/api/admin/members/create","/api/admin/members/update"):
+        if path not in ("/api/login","/api/compute","/api/reports","/api/render","/api/plan/analysis","/api/plan/import","/api/forecast/import","/api/smart/check","/api/smart/draft","/api/smart/restore","/api/smart/table","/api/admin/preview","/api/admin/import","/api/inventory/import","/api/admin/members/create","/api/admin/members/update","/api/admin/push","/api/activity"):
             self.error(404,"Resursa nu există.");return
         origin=self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -554,12 +594,27 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type","").split(";")[0].strip().lower() != "application/json":
             self.error(415,"Este necesar application/json.");return
         length=self.headers.get("Content-Length","")
-        limit=4096 if path.startswith('/api/admin/members/') else 50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table","/api/inventory/import") else MAX_BYTES
+        limit=4096 if path.startswith('/api/admin/members/') or path in ('/api/admin/push','/api/activity') else 50_000_000 if path.startswith('/api/admin/') else 8_000_200 if path in ("/api/plan/import","/api/forecast/import","/api/smart/table","/api/inventory/import") else MAX_BYTES
         if not length.isdecimal() or int(length)>limit:
             self.error(413,"Raport prea mare.");return
         try:
             body=json.loads(self.rfile.read(int(length)))
             person=self.principal()
+            if path == '/api/admin/push':
+                action = body.get('action') if isinstance(body, dict) else None
+                if action not in ('enable', 'disable', 'status', 'test'):
+                    raise ValueError('Acțiune invalidă.')
+                with closing(database()) as conn:
+                    result = notifications.device(conn, action, body)
+                self.respond(200, json.dumps(result).encode(), 'application/json');return
+            if path == '/api/activity':
+                mode = body.get('mode') if isinstance(body, dict) else None
+                action = body.get('action') if isinstance(body, dict) else None
+                if mode not in members.MODES or action not in ('report-download', 'table-apply'):
+                    raise ValueError('Acțiune invalidă.')
+                if not self.permitted(mode, action == 'table-apply'):return
+                self.colleague_event(person, action, detail={'mode':mode})
+                self.respond(200, b'{}', 'application/json');return
             if path in ('/api/admin/members/create','/api/admin/members/update'):
                 conn=database()
                 try:result=members.create(conn,body) if path.endswith('/create') else members.update(conn,body)
@@ -583,15 +638,21 @@ class Handler(BaseHTTPRequestHandler):
                 from server.inventory import read as read_inventory
                 try:result=read_inventory(body)
                 except ValueError as exc:raise InvalidReport(str(exc))
+                self.colleague_event(person, 'inventory-import', detail={'mode':'plan'})
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),'application/json');return
             if path=="/api/smart/table":
                 result=table_import.read(body)
+                mode = self.headers.get('X-PLUP-Module')
+                if mode not in person['modules']:
+                    mode = None
+                self.colleague_event(person, 'table-import', detail={'mode':mode})
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path in ("/api/smart/check","/api/smart/draft","/api/smart/restore"):
                 if path.endswith("check"):
                     conn=database()
                     try:result=smart.checks(body,validate_report,conn if "plan" in person["modules"] else None)
                     finally:conn.close()
+                    self.colleague_event(person, 'report-check', detail={'mode':body.get('mode')})
                 elif path.endswith("draft"):
                     conn=database()
                     try:
@@ -613,6 +674,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(body,dict) or set(body)!={"image"}:
                     raise PlanImportError("Imagine invalidă.")
                 result=import_plan(body["image"]) if path=="/api/plan/import" else import_forecast(body["image"])
+                self.colleague_event(person, 'image-import', detail={'mode':fixed[path]})
                 self.respond(200,json.dumps(result,ensure_ascii=False).encode(),"application/json; charset=utf-8");return
             if path=="/api/plan/analysis":
                 report=process_plan(body);result=plan_insights(report,body,"weekday" in person["modules"])
@@ -634,7 +696,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(201,json.dumps(saved).encode(),"application/json; charset=utf-8");return
             report=process_plan(body) if isinstance(body,dict) and body.get("mode")=="plan" else process_forecast(body) if isinstance(body,dict) and body.get("mode")=="forecast" else process(body)
         except (ValueError,UnicodeDecodeError,TypeError,OverflowError) as exc:
-            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) or ((path.startswith("/api/smart/") or path.startswith("/api/admin/members/")) and type(exc) is ValueError) else "Raport invalid.");return
+            self.error(400,str(exc) if isinstance(exc,(InvalidReport,PlanImportError)) or ((path.startswith("/api/smart/") or path.startswith("/api/admin/members/") or path in ("/api/admin/push","/api/activity")) and type(exc) is ValueError) else "Raport invalid.");return
         if path=="/api/render":
             try:
                 params=parse_qs(parts.query)
@@ -648,16 +710,22 @@ class Handler(BaseHTTPRequestHandler):
             except SourceRenderError as exc: self.error(400,str(exc));return
             except (ValueError,KeyError): self.error(400,"Pagină invalidă.");return
             if person["role"]!="viewer":remember_generated(body,person["id"])
+            batch = self.headers.get('X-PLUP-Export', '')
+            if not re.fullmatch(r'[a-f0-9-]{36}', batch):
+                batch = str(uuid.uuid4())
+            self.colleague_event(person, 'report-generate', batch,
+                                 {'mode':report['mode'], 'date':report['date']})
             self.respond(200,image,"image/png")
         else:
             self.respond(200,json.dumps(serialize(report),ensure_ascii=False).encode(),"application/json; charset=utf-8")
 
-    def member_auth(self):
+    def same_origin(self):
         origin = self.headers.get('Origin')
-        same_origin = self.headers.get('Sec-Fetch-Site') == 'same-origin'
-        if (origin is not None and urlsplit(origin).netloc != self.headers.get('Host')) or (
-            origin is None and not same_origin
-        ):
+        return (urlsplit(origin).netloc == self.headers.get('Host') if origin is not None
+                else self.headers.get('Sec-Fetch-Site') == 'same-origin')
+
+    def member_auth(self):
+        if not self.same_origin():
             self.error(403,'Origine neautorizată.');return
         if self.headers.get('Content-Type','').split(';')[0].strip().lower()!='application/json':
             self.error(415,'Este necesar application/json.');return
@@ -667,7 +735,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body=json.loads(self.rfile.read(int(length)));conn=database()
             try:
-                token=members.login(conn,body,self.client_address[0]);result={'ok':True}
+                token=members.login(conn,body,self.client_address[0], client_device(self.headers));result={'ok':True}
             finally:conn.close()
             headers=None
             if token:
@@ -722,5 +790,9 @@ if __name__=="__main__":
     port=int(os.environ.get("PORT","8000"))
     if host not in ("127.0.0.1","::1","localhost") and (len(PASSWORD)<16 or len(SESSION_SECRET)<32):
         raise SystemExit("For network hosting, set PLUP_PASSWORD (16+ characters) and PLUP_SESSION_SECRET (32+ characters).")
+    with closing(database()):
+        pass
+    if identity.enabled() and not identity.configuration_issues():
+        notifications.start(DB_PATH, identity.config()[0])
     print(f"PLUP server on http://{host}:{port}",flush=True)
     ThreadingHTTPServer((host,port),Handler).serve_forever()

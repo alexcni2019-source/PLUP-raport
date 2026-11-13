@@ -10,10 +10,10 @@
       const data=await response.json();if(!response.ok)throw Error(data.error||'Analiza fluxului nu a reușit.');
       for(const item of data.flow_pages||[])parts.push(['clients','Flux · '+item.client+' · pagina '+(item.page+1),item.page]);
     }
-    const blobs=[];
+    const blobs=[],exportId=crypto.randomUUID?.();
     for(const [section,title,page=0] of parts){
       window.PLUPTables?.assertApplied(payload.mode);
-      const response=await window.PLUPFetch(`/api/render?theme=${theme}&status=${showStatus?'1':'0'}&section=${section}&page=${page}`,{method:'POST',headers:{'Content-Type':'application/json'},body:snapshot,credentials:'same-origin'});
+      const response=await window.PLUPFetch(`/api/render?theme=${theme}&status=${showStatus?'1':'0'}&section=${section}&page=${page}`,{method:'POST',headers:{'Content-Type':'application/json',...(exportId?{'X-PLUP-Export':exportId}:{})},body:snapshot,credentials:'same-origin'});
       if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||'Generarea nu a reușit.');}
       const blob=await response.blob();
       window.PLUPTables?.assertApplied(payload.mode);
@@ -29,6 +29,7 @@
         const wrap=document.createElement('div'),heading=document.createElement('h3'),img=document.createElement('img'),link=document.createElement('a');
         wrap.className='image-result';if(payload.mode==='plan'&&section==='summary'){const edit=document.createElement('button');edit.type='button';edit.className='secondary-button';edit.textContent='Editează restul de predat și regenerează';edit.addEventListener('click',()=>window.PLUPRemaining.open());wrap.append(edit);}heading.textContent=title;img.src=url;img.alt=title+' PLUP';link.href=url;
         link.download=`NRG_PLUP_${payload.mode}_${payload.date}_${section}_${page+1}_${payload.mode==='forecast'?(showStatus?'productie':'directiune')+'_':''}${theme}.png`;
+        link.addEventListener('click',()=>window.PLUPUI.activity('report-download',payload.mode));
         link.textContent=`Descarcă PNG · ${title} ↓`;wrap.append(heading,img,link);fragment.append(wrap);
       }
       window.PLUPUI.clearImages(target);target.replaceChildren(fragment);

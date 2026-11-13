@@ -20,7 +20,7 @@ COPY web ./web
 COPY --from=frontend /build/web/modern/ ./web/modern/
 COPY server ./server
 COPY tests ./tests
-RUN python -m unittest discover -s tests -p 'test_members.py' && python -m unittest discover -s tests -p 'test_source_readability.py' && python -m unittest discover -s tests -p 'test_split_exports.py'
+RUN python -m unittest discover -s tests
 RUN rm -rf tests
 COPY entrypoint-private.sh ./entrypoint-private.sh
 RUN chmod 755 ./entrypoint-private.sh

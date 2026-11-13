@@ -37,9 +37,9 @@ class MembersTest(unittest.TestCase):
         self.server.shutdown();self.server.server_close();self.thread.join()
         self.env.stop();self.dbpatch.stop();self.temp.cleanup()
 
-    def request(self,method,path,body=None,token='owner-session',csrf=True,origin=True):
+    def request(self,method,path,body=None,token='owner-session',csrf=True,origin=True,extra_headers=None):
         owner=token=='owner-session'
-        headers={'Content-Type':'application/json'}
+        headers={'Content-Type':'application/json', **(extra_headers or {})}
         if token:headers['Cookie']=('__Host-plup_identity=' if owner else members.COOKIE+'=')+token
         if origin:headers['Origin']=self.origin
         if csrf and token:headers['X-CSRF-Token']=hmac.new(app.SESSION_SECRET.encode(),('csrf:'+token).encode(),hashlib.sha256).hexdigest()
