@@ -15,7 +15,7 @@ class ReadabilityTests(unittest.TestCase):
    with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,palette)
    self.assertLessEqual(image.width,4000);self.assertTrue(any(t==row[2] for _,t,size in seen));self.assertTrue(any(t=='CLIENT TEST' and size==24 for _,t,size in seen))
    for (x,y),t,size in seen:self.assertGreaterEqual(x,0);self.assertLess(x,image.width);self.assertLess(y+size,image.height)
- def test_total_labels_and_observations_single_line_and_headers_centered(self):
+ def test_total_labels_and_wrapped_observations_are_preserved(self):
   header=['CLIENT','PRODUS','METAL PLANIFICAT (TONE)','OBSERVATII']
   body=['CLIENT TEST','PRODUS COMPLET','1.25','OBSERVATIE COMPLETA PE UN SINGUR RAND']
   total='TOTAL GENERAL FARA PREDARI (TONE)'
@@ -24,7 +24,9 @@ class ReadabilityTests(unittest.TestCase):
   def record(draw,xy,text,*a,**kw):seen.append((xy,text,kw['font']));return original(draw,xy,text,*a,**kw)
   with patch.object(ImageDraw.ImageDraw,'text',record):image=source_image(report,LIGHT)
   self.assertGreaterEqual(image.width,1672)
-  for value in [*body,total]:self.assertTrue(any(text==value and f.size==24 for xy,text,f in seen))
+  for value in [*body[:2],'1,25',total]:self.assertTrue(any(text==value and f.size==24 for xy,text,f in seen),value)
+  observation_lines=[text for xy,text,f in seen if f.size==24 and text in body[3] and text not in body[:3]]
+  self.assertEqual(' '.join(observation_lines),body[3])
   self.assertIn('Comandă',[text for xy,text,f in seen])
   for xy,text,f in seen:self.assertLessEqual(xy[0]+f.getlength(text),image.width)
  def test_duplicate_plan_caption_hidden_and_total_label_left_aligned(self):
