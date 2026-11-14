@@ -702,9 +702,9 @@ class Handler(BaseHTTPRequestHandler):
                 params=parse_qs(parts.query)
                 theme=params.get("theme",["light"])[0]
                 if theme not in ("light","dark"):raise ValueError("Temă invalidă")
-                page=int(params.get("page",[0])[0]);section=params.get("section",["summary"])[0]
+                page=int(params.get("page",[0])[0]);section=params.get("section",["all" if report["mode"]=="forecast" else "summary"])[0]
                 if report["mode"] in ("plan","forecast"):
-                    if (page!=0 and section not in ("clients","stock")) or section not in (("overview","summary","table","clients","stock") if report["mode"]=="plan" else ("summary","table")):raise ValueError("Secțiune invalidă")
+                    if (page!=0 and section not in ("clients","stock")) or section not in (("overview","summary","table","clients","stock") if report["mode"]=="plan" else ("all","summary","table")):raise ValueError("Secțiune invalidă")
                     image=plan_image(report,theme,plan_insights(report,body,"weekday" in person["modules"]) if section in ("overview","summary","clients","stock") else None,section,page) if report["mode"]=="plan" else forecast_image(report,theme,params.get("status",["1"])[0]=="1",section)
                 else:image=production_image(report,page,theme)
             except SourceRenderError as exc: self.error(400,str(exc));return

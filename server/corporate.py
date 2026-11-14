@@ -235,24 +235,32 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
     if section=="table":return _forecast_table_image(forecast,theme,show_status)
     table=Image.open(BytesIO(_forecast_table_image(forecast,theme,show_status))) if section=="all" else None
     from server.forecast_clients import distribution
-    clients,note=distribution(forecast)
-    clients=[r for r in clients if not r.get("unknown")]
+    distribution_rows,_=distribution(forecast)
+    clients=[r for r in distribution_rows if not r.get("unknown")]
     measure=ImageDraw.Draw(Image.new('RGB',(1,1)))
     client_lines=[wrapped(measure,row['material']+' · '+row['client'],16,535) for row in clients]
     client_heights=[max(46,18+24*len(lines)) for lines in client_lines]
     chart_height=64+sum(client_heights) if clients else 0
     from server.forecast_work import build
     from server.forecast_work_render import work_image
-    execution=work_image(forecast.get('work',build(forecast['rows'])),p)
+    entries=forecast['work'] if 'work' in forecast else build(forecast['rows'])
+    execution=work_image(entries,p)
     work_height=execution.height+14 if execution else 0
     source=forecast.get('sourceTable');known=lambda k:not source or k in source['columns']
     summary_height=210 if known('tons') or known('km') else 0
-    offset=summary_height+chart_height+work_height;width=table.width if table is not None else 1672
-    height=table.height+offset if table is not None else 87+offset+30
-    if width*height>MAX_PIXELS:raise SourceRenderError("Tabelul și sinteza depășesc dimensiunea maximă a imaginii.")
+    brand_height=87
+    table_top=brand_height+summary_height+chart_height
+    execution_top=table_top
+    width=1672
+    if table is not None:
+        width=table.width
+        execution_top+=table.height-brand_height
+    height=execution_top+work_height+(30 if table is None else 0)
+    if width*height>MAX_PIXELS:raise SourceRenderError("Raportul complet depășește dimensiunea maximă a unui PNG.")
     image=Image.new("RGB",(width,height),p['bg']);d=ImageDraw.Draw(image)
     if table is not None:
-        image.paste(table.crop((0,0,width,87)),(0,0));image.paste(table.crop((0,87,width,table.height)),(0,87+offset))
+        image.paste(table.crop((0,0,width,brand_height)),(0,0))
+        image.paste(table.crop((0,brand_height,width,table.height)),(0,table_top))
     else:brand(d,width,date.fromisoformat(forecast['date']).strftime('%d.%m.%Y'),"PREVIZ ZILNIC",p)
     left=(width-1672)//2
     if summary_height:label(d,(left+30,103),'PREVIZ ZILNIC',19,p['ink'],bold=True)
@@ -260,13 +268,12 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
         if not summary_height:continue
         x=left+30+i*546;d.rounded_rectangle((x,140,x+520,262),radius=12,fill=fill,outline=p['line'])
         totals=forecast['totals'][material] if material!='TOTAL' else {k:sum(forecast['totals'][m][k] for m in ('AL','CU')) for k in ('km','tons')}
-        known=lambda k:not forecast.get('sourceTable') or k in forecast['sourceTable']['columns']
         label(d,(x+20,157),title,14,p['muted'],bold=True)
         if known('tons'):label(d,(x+20,188),amount(totals['tons'],2)+' t',28,color,bold=True,width=480)
         if known('km'):label(d,(x+20,229),amount(totals['km'],2)+' km',16,p['ink'])
 
     if clients:label(d,(left+30,summary_height+99),'DISTRIBUȚIA TONELOR PE CLIENȚI',18,p['ink'],bold=True)
-    material_totals={material:sum(float(row['tons']) for row in distribution(forecast)[0] if row['material']==material) for material in ('AL','CU')}
+    material_totals={material:sum(float(row['tons']) for row in distribution_rows if row['material']==material) for material in ('AL','CU')}
     y=summary_height+134
     colors=[p['accent'],p['success'],'#ef9b50' if theme=='dark' else '#b76517','#8b84d5','#42a5ac']
     for i,(row,lines,h) in enumerate(zip(clients,client_lines,client_heights)):
@@ -278,5 +285,5 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
         label(d,(left+1350,center-11),amount(row['tons'],2)+' t · '+amount(row['materialPercent'],1)+'% '+row['material'],17,p['ink'],bold=True,width=290)
         y+=h
 
-    if execution:image.paste(execution,(left,87+summary_height+chart_height))
+    if execution:image.paste(execution,(left,execution_top))
     return png(image)

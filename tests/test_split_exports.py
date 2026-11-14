@@ -21,6 +21,18 @@ class SplitExportTests(unittest.TestCase):
    seen,_=self.text_render(lambda:corporate.forecast_image(report,theme,False,'table'))
    self.assertIn('URGENT',seen)
    self.assertNotIn('LISTA DE EXECUȚIE · SCHIMBUL 2',seen);self.assertNotIn('DISTRIBUȚIA TONELOR PE CLIENȚI',seen);self.assertNotIn('STADIU',seen);self.assertNotIn('SCH2',seen);self.assertIn('CABLU TEST',seen)
+ def test_full_forecast_contains_all_sections_and_respects_status(self):
+  raw={'mode':'forecast','date':'2026-10-12','rows':[{**dict.fromkeys(app.FORECAST_FIELDS,''),'material':'AL','product':'CABLU TEST','km':'2.8','tons':'3','client':'CLIENT TEST','measure':'1000 M/TB','status':'SCH2','priority':'urgent'}]}
+  report=app.process_forecast(raw)
+  for theme in ('light','dark'):
+   for show_status in (True,False):
+    seen,image=self.text_render(lambda:corporate.forecast_image(report,theme,show_status,'all'))
+    for label in ('TOTAL PREVIZ','DISTRIBUȚIA TONELOR PE CLIENȚI','TOTAL AL + CU','LISTA DE EXECUȚIE · SCHIMBUL 2','URGENT'):
+     self.assertIn(label,seen)
+    for label in ('STADIU','SCH2'):
+     self.assertEqual(label in seen,show_status)
+    self.assertEqual(seen.count('NRG Cables'),1)
+    self.assertGreater(image.height,800)
  def test_plan_summary_does_not_render_product_table(self):
   raw={'mode':'plan','date':'2026-10-12','week':'w42','incoming':'','rows':[{**dict.fromkeys(app.PLAN_FIELDS,''),'material':'AL','product':'CABLU TEST','client':'CLIENT TEST','planned':'10','handed':'2','bar':'3'}]}
   report=app.process_plan(raw);insights=plan_analysis.build(report,raw)

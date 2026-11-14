@@ -3,7 +3,7 @@
   window.PLUPSplitExport=async ({payload,current,valid,theme,showStatus=true,target})=>{
     window.PLUPTables?.assertApplied(payload.mode);
     const snapshot=JSON.stringify(payload),parts=payload.mode==='forecast'
-      ?[['summary','Execuție și diagrame'],['table','Lista de previz']]
+      ?[['all','Previz complet']]
       :[['overview','Sinteză pentru telefon'],['table','Tabel complet · produse'],['summary','Analiză și diagrame']];
     if(payload.mode==='plan'){
       const response=await window.PLUPFetch('/api/plan/analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:snapshot,credentials:'same-origin'});
@@ -18,7 +18,7 @@
       const blob=await response.blob();
       window.PLUPTables?.assertApplied(payload.mode);
       if(!valid())return false;
-      if(JSON.stringify(current())!==snapshot)throw Error('Datele au fost schimbate în timpul generării. Generează din nou imaginile.');
+      if(JSON.stringify(current())!==snapshot)throw Error('Datele au fost schimbate în timpul generării. Generează din nou raportul.');
       if(blob.type!=='image/png')throw Error('Răspuns imagine invalid.');
       blobs.push({section,title,blob,page});
     }
@@ -28,7 +28,9 @@
         const url=URL.createObjectURL(blob);urls.push(url);
         const wrap=document.createElement('div'),heading=document.createElement('h3'),img=document.createElement('img'),link=document.createElement('a');
         wrap.className='image-result';if(payload.mode==='plan'&&section==='summary'){const edit=document.createElement('button');edit.type='button';edit.className='secondary-button';edit.textContent='Editează restul de predat și regenerează';edit.addEventListener('click',()=>window.PLUPRemaining.open());wrap.append(edit);}heading.textContent=title;img.src=url;img.alt=title+' PLUP';link.href=url;
-        link.download=`NRG_PLUP_${payload.mode}_${payload.date}_${section}_${page+1}_${payload.mode==='forecast'?(showStatus?'productie':'directiune')+'_':''}${theme}.png`;
+        link.download=payload.mode==='forecast'
+          ? `NRG_PLUP_previz_${payload.date}_${showStatus?'productie':'directiune'}_${theme}.png`
+          : `NRG_PLUP_${payload.mode}_${payload.date}_${section}_${page+1}_${theme}.png`;
         link.addEventListener('click',()=>window.PLUPUI.activity('report-download',payload.mode));
         link.textContent=`Descarcă PNG · ${title} ↓`;wrap.append(heading,img,link);fragment.append(wrap);
       }
