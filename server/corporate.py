@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from PIL import Image, ImageDraw
 
 from server.render import OPS, amount, font, png, text, wrapped
-from server.export_marks import urgent, urgent_badge
+from server.export_marks import priority_dot
 from server.forecast_totals import amount_text
 from server.source_render import source_image, combined_image
 
@@ -16,6 +16,7 @@ LIGHT = {
     "line":"#d9e2d3","head":"#e8f5e8","stripe":"#f5f6ec","pill":"#e8f5e8",
     "blue":"#e8f5ef","green":"#edf5df","yellow":"#f5f5d6",
     "accent":"#006b65","success":"#147549","success_bg":"#dff0cb",
+    "priority_urgent":"#b4232b","priority_normal":"#747b76",
     "al_bg":"#e4eef9","cu_bg":"#fff0df","alert":"#a42620","alert_bg":"#fae6e2","al":"#255ab7","cu":"#b44c16","hero":"#006b65","hero_ink":"#fff9e9"
 }
 DARK = {
@@ -23,6 +24,7 @@ DARK = {
     "line":"#425748","head":"#293b2e","stripe":"#223429","pill":"#293b2e",
     "blue":"#243c32","green":"#293c28","yellow":"#353d26",
     "accent":"#64dbc4","success":"#b6de83","success_bg":"#344b2a",
+    "priority_urgent":"#ff786f","priority_normal":"#a0aaa1",
     "al_bg":"#25394a","cu_bg":"#493628","alert":"#ffc0b6","alert_bg":"#512d2a","al":"#9dbdff","cu":"#ffb277","hero":"#0a443d","hero_ink":"#fff9e9"
 }
 
@@ -140,13 +142,11 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
     p["green"]="#493628" if theme=="dark" else "#fff0df"
     p["yellow"]="#263b32" if theme=="dark" else "#e3f5ea"
     if forecast.get("sourceTable"):return png(source_image(forecast,p,show_status))
-    with_priority=any(row.get('priority') for row in forecast['rows'])
-    columns=(30,75,450,568,686,879,1089,1236,1644) if show_status else (30,75,490,620,750,970,1190,1644)
-    if with_priority:columns=(*columns[:-1],1494,columns[-1])
+    columns=(30,75,485,605,725,920,1135,1295,1644) if show_status else (30,75,515,650,785,1010,1235,1644)
     keys=["product","km","tons","client","measure"]+(["status"] if show_status else [])+["notes"]
-    if with_priority:keys.append("priority")
     headers={"product":"PRODUS","km":"KM","tons":"TONE","client":"CLIENT",
-             "measure":"MĂSURĂRI","status":"STADIU","notes":"OBSERVAȚII","priority":"PRIORITATE"}
+             "measure":"MĂSURĂRI","status":"STADIU","notes":"OBSERVAȚII"}
+    product_inset=26
     from server.forecast_order import products
     al=products([row for row in forecast["rows"] if row["material"]=="AL"])
     cu=products([row for row in forecast["rows"] if row["material"]=="CU"])
@@ -156,7 +156,8 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
         for i,key in enumerate(keys):
             if key not in ("product","notes","measure"):continue
             value=row[key] if key=="product" else cell_text(row[key])
-            wraps[key]=wrapped(measure,value,13,columns[i+2]-columns[i+1]-18) if value else []
+            inset=product_inset if key=="product" else 8
+            wraps[key]=wrapped(measure,value,13,columns[i+2]-columns[i+1]-inset-10) if value else []
         return wraps,max(38,12+18*max((len(q) for q in wraps.values()),default=1))
     layouts=[layout(row) for row in al+cu]
     body=sum(height for _,height in layouts)
@@ -190,11 +191,13 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
                         d.rounded_rectangle((left+8,y+5,right-8,y+row_height-5),radius=12,
                                             fill=p["success_bg"] if is_done else p["pill"])
                         label(d,((left+right)/2,y+row_height/2),status,12,p["success"] if is_done else p["ink"],bold=True,anchor="mm",width=right-left-23)
-                elif key=="priority" and urgent(row.get(key)):
-                    urgent_badge(d,((left+right)/2,y+row_height/2),p,17)
                 elif key in lines:
+                    inset=product_inset if key=="product" else 8
+                    top=y+(row_height-18*len(lines[key]))/2
+                    if key=="product" and lines[key]:
+                        priority_dot(d,(left+12,top+9),row.get("priority"),p,4)
                     for n,line in enumerate(lines[key]):
-                        label(d,(left+8,y+(row_height-18*len(lines[key]))/2+n*18),line,13,p["ink"],width=right-left-16)
+                        label(d,(left+inset,top+n*18),line,13,p["ink"],width=right-left-inset-8)
                 elif key in ("km","tons"):
                     if not row[key]:continue
                     label(d,((left+right)/2,y+row_height/2),amount_text(row[key]) if key=='tons' else amount(row[key]),14,p["ink"],anchor="mm",width=right-left-12)
@@ -241,21 +244,12 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
     client_lines=[wrapped(measure,row['material']+' · '+row['client'],16,535) for row in clients]
     client_heights=[max(46,18+24*len(lines)) for lines in client_lines]
     chart_height=64+sum(client_heights) if clients else 0
-    from server.forecast_work import build
-    from server.forecast_work_render import work_image
-    entries=forecast['work'] if 'work' in forecast else build(forecast['rows'])
-    execution=work_image(entries,p)
-    work_height=execution.height+14 if execution else 0
     source=forecast.get('sourceTable');known=lambda k:not source or k in source['columns']
     summary_height=210 if known('tons') or known('km') else 0
     brand_height=87
     table_top=brand_height+summary_height+chart_height
-    execution_top=table_top
-    width=1672
-    if table is not None:
-        width=table.width
-        execution_top+=table.height-brand_height
-    height=execution_top+work_height+(30 if table is None else 0)
+    width=table.width if table is not None else 1672
+    height=table_top+(table.height-brand_height if table is not None else 30)
     if width*height>MAX_PIXELS:raise SourceRenderError("Raportul complet depășește dimensiunea maximă a unui PNG.")
     image=Image.new("RGB",(width,height),p['bg']);d=ImageDraw.Draw(image)
     if table is not None:
@@ -285,5 +279,4 @@ def forecast_image(forecast,theme="light",show_status=True,section="all"):
         label(d,(left+1350,center-11),amount(row['tons'],2)+' t · '+amount(row['materialPercent'],1)+'% '+row['material'],17,p['ink'],bold=True,width=290)
         y+=h
 
-    if execution:image.paste(execution,(left,execution_top))
     return png(image)

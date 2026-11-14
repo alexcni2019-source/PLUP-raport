@@ -38,8 +38,19 @@ class ForecastWorkTests(unittest.TestCase):
     app.process_forecast(payload([row()])) # Legacy rows remain valid.
    finally:app.DB_PATH=original
  def test_source_columns_and_status_hidden_export(self):
-  raw=payload([row(order='1',priority='urgent',notes='MAX TB E24')]);raw['sourceTable']={'version':1,'header':0,'date':raw['date'],'rows':[['Produs','Ordine','Prioritate','Metri pe tambur'],['CABLU TEST','1','urgent','1000']],'columns':{'product':0,'order':1,'priority':2,'drumLength':3},'records':[{'row':1,'material':'AL'}]}
-  report=app.process_forecast(raw);original=ImageDraw.ImageDraw.text;seen=[]
+  raw=payload([row(order='1',priority='urgent',notes='MAX TB E24')]);raw['sourceTable']={'version':1,'header':0,'date':raw['date'],'rows':[['Produs','Ordine','Prioritate','Metri pe tambur','Observații'],['CABLU TEST','1','urgent','1000','MAX TB E24']],'columns':{'product':0,'order':1,'priority':2,'drumLength':3,'notes':4},'records':[{'row':1,'material':'AL'}]}
+  from server.source_render import priority_dot
+  original=ImageDraw.ImageDraw.text;seen=[]
   def record(draw,xy,text,*a,**kw):seen.append(text);return original(draw,xy,text,*a,**kw)
-  with patch.object(ImageDraw.ImageDraw,'text',record):forecast_image(report,'light',False)
-  self.assertIn('LISTA DE EXECUȚIE · SCHIMBUL 2',seen);self.assertIn('URGENT',seen);self.assertNotIn('STADIU',seen);self.assertTrue(any('MAX TB E24' in v for v in seen))
+  for mapped in (True,False):
+   if not mapped:
+    for key in ('product','priority','drumLength'):
+     del raw['sourceTable']['columns'][key]
+   seen.clear()
+   report=app.process_forecast(raw)
+   with patch.object(ImageDraw.ImageDraw,'text',record),patch('server.source_render.priority_dot',wraps=priority_dot) as dot:
+    forecast_image(report,'light',False)
+   dot.assert_called_once()
+   self.assertEqual(dot.call_args.args[2],'urgent')
+   self.assertTrue({'Produs','CABLU TEST','Ordine','MAX TB E24'}.issubset(seen))
+   self.assertFalse({'LISTA DE EXECUȚIE · SCHIMBUL 2','URGENT','urgent','Prioritate','Metri pe tambur','1000','STADIU'}.intersection(seen))

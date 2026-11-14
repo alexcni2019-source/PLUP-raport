@@ -1,12 +1,13 @@
-"""Render every imported cell, without a fixed business-column template."""
+"""Lay out imported tables for report export."""
 from datetime import date
 from io import BytesIO
 import re
 from PIL import Image, ImageDraw
 from server.render import font, png
 from server.km_completion import norm
-from server.export_marks import numeric, urgent, urgent_badge, urgent_width
+from server.export_marks import numeric, priority_dot
 from server.forecast_totals import aligned_tonnage, tonnage_column, total_label
+from server.materials import marker
 
 MAX_PIXELS=40_000_000
 
@@ -19,15 +20,30 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   from server.plan_export import table_image
   return table_image(report, palette, with_brand, stamp)
  table=report['sourceTable'];rows=table['rows'];header=table['header'];p=palette
- ton_col=None
+ ton_col=product=priority=None
+ hidden=set()
+ product_inset=44
  if report['mode']=='forecast':
   from server.forecast_order import source_rows
   rows=source_rows(table)
-  ton_col=tonnage_column(table,rows[header])
+  headings=rows[header]
+  mapping=table['columns']
+  unmapped={i:norm(name).removesuffix(' optional') for i,name in enumerate(headings) if i not in mapping.values()}
+  priority_columns={i for i,name in unmapped.items() if name in ('prioritate','priority','urgenta')}
+  hidden={i for i,name in unmapped.items() if name in ('metri pe tambur','metrii pe tambur','metri tambur','m tambur','lungime tambur')}
+  if 'priority' in mapping:priority_columns.add(mapping['priority'])
+  if 'drumLength' in mapping:hidden.add(mapping['drumLength'])
+  hidden.update(priority_columns)
+  priority=mapping.get('priority')
+  if priority is None and len(priority_columns)==1:priority=next(iter(priority_columns))
+  product=mapping.get('product')
+  if product is None:
+   candidates=[i for i,name in unmapped.items() if name in ('produs','produse','product')]
+   if len(candidates)==1:product=candidates[0]
+  ton_col=tonnage_column(table,headings)
   if ton_col is not None:
    rows=aligned_tonnage(rows,table,ton_col)
  width=max(map(len,rows))
- hidden=set()
  if report['mode']=='forecast' and not show_status:
   if 'status' in table['columns']:hidden.add(table['columns']['status'])
   for i,name in enumerate(rows[header]):
@@ -35,10 +51,6 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  columns=[i for i in range(width) if i not in hidden]
  if not columns:raise SourceRenderError('Nu există coloane de afișat.')
  measure=ImageDraw.Draw(Image.new('RGB',(1,1)));body_font=font(24);head_font=font(20,True)
- priority=table['columns'].get('priority')
- if report['mode']=='forecast' and priority is None:
-  candidates=[i for i,value in enumerate(rows[header]) if norm(value) in ('prioritate','priority','urgenta')]
-  if len(candidates)==1:priority=candidates[0]
  def is_total(row):
   if report['mode']=='forecast':
    return any(total_label(value) for value in row) or norm(' '.join(row[:3])).startswith('intrari')
@@ -60,9 +72,9 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   bold_width=max((measure.textlength(body_line(row[col]),font=font(24,True))
                   for ri,row in enumerate(rows) if ri>header and col<len(row) and is_total(row)),default=0)
   body_width=max(body_width,bold_width)
-  if col==priority:body_width=max(body_width,urgent_width(measure,24))
-  minimum=300 if key=='product' else 150 if key=='client' else 66 if key=='material' else 110
-  widths.append(max(minimum,int(header_width)+33,int(body_width)+33))
+  minimum=300 if col==product else 150 if key=='client' else 66 if key=='material' else 110
+  body_padding=product_inset+17 if col==product else 33
+  widths.append(max(minimum,int(header_width)+33,int(body_width)+body_padding))
  content=sum(widths)
  if content<2340:
   extra=2340-content;widths=[v+extra//len(widths)+(1 if i<extra%len(widths) else 0) for i,v in enumerate(widths)]
@@ -109,11 +121,14 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
      token=str(value).strip().upper().rstrip(':')
      if token in ('AL','CU'):d.rectangle((x,y,x+w,y+height),fill=p['blue'] if token=='AL' else p['green'])
     if report['mode']=='forecast' and ri>header and ci==table['columns'].get('status') and re.match(r'^PREDAT(?:\s|$)',str(value).strip(),re.I):d.rectangle((x,y,x+w,y+height),fill=p['success_bg'])
-    marked=ri>header and not total and ci==priority and urgent(value)
-    if marked:urgent_badge(d,(x+w/2,y+height/2),p)
-    cell_lines=[] if marked else layouts[ri].get(ci,[])
+    cell_lines=layouts[ri].get(ci,[])
+    is_product=ci==product and ri>header and not total and str(value).strip() and not marker(value)
+    if is_product:
+     priority_value=row[priority] if priority is not None and priority<len(row) else ''
+     priority_dot(d,(x+24,y+height/2),priority_value,p,6)
     for n,line in enumerate(cell_lines):
      left=x+16 if total and ci!=ton_col and not numeric(line) else x+(w-d.textlength(line,font=f))/2
+     if is_product:left=x+product_inset
      color=p['accent'] if total and (ci==ton_col or numeric(line)) else p['ink']
      d.text((left,y+(height-28*len(cell_lines))/2+n*28 if ri==header else y+(height-32)/2+n*32),line,font=f,fill=color)
     x+=w
