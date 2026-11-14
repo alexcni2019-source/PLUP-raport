@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 
 from server.render import OPS, amount, font, png, text, wrapped
 from server.export_marks import urgent, urgent_badge
+from server.forecast_totals import amount_text
 from server.source_render import source_image, combined_image
 
 
@@ -196,7 +197,7 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
                         label(d,(left+8,y+(row_height-18*len(lines[key]))/2+n*18),line,13,p["ink"],width=right-left-16)
                 elif key in ("km","tons"):
                     if not row[key]:continue
-                    label(d,((left+right)/2,y+row_height/2),amount(row[key]),14,p["ink"],anchor="mm",width=right-left-12)
+                    label(d,((left+right)/2,y+row_height/2),amount_text(row[key]) if key=='tons' else amount(row[key]),14,p["ink"],anchor="mm",width=right-left-12)
                 else:
                     label(d,((left+right)/2,y+row_height/2),cell_text(row[key]),13,p["ink"],anchor="mm",width=right-left-12)
             y+=row_height
@@ -209,29 +210,20 @@ def _forecast_table_image(forecast,theme="light",show_status=True):
         for key in ("km","tons"):
             index=keys.index(key)
             left,right=columns[index+1],columns[index+2]
-            label(d,((left+right)/2,y+height/2),amount(totals[key]),16,p["accent"],bold=True,anchor="mm")
+            label(d,((left+right)/2,y+height/2),amount_text(totals[key]) if key=='tons' else amount(totals[key]),16,p["accent"],bold=True,anchor="mm")
         y+=height
 
     rows("AL",al)
-    al_end=y
     total_band("TOTAL AL",p["blue"],forecast["totals"]["AL"],43)
     y+=14
     if not cu:
         d.rectangle((30,y,75,y+39),fill=p["green"])
         label(d,(40,y+19),"CU:",14,p["ink"],bold=True,anchor="lm")
         y+=39
-    cu_start=y
     rows("CU",cu)
-    cu_end=y
     total_band("TOTAL CU",p["green"],forecast["totals"]["CU"],43)
     total_band("TOTAL AL + CU",p["yellow"],
                {key:forecast["totals"]["AL"][key]+forecast["totals"]["CU"][key] for key in ("km","tons")},47)
-    for x in columns:
-        if x in (columns[1],columns[2]):
-            d.line((x,103,x,al_end),fill=p["line"])
-            if cu_end>cu_start:d.line((x,cu_start,x,cu_end),fill=p["line"])
-        else:d.line((x,103,x,y),fill=p["line"])
-    d.line((30,153,1644,153),fill=p["line"])
     return png(image)
 
 

@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw
 from server.render import font, png
 from server.km_completion import norm
 from server.export_marks import numeric, urgent, urgent_badge, urgent_width
+from server.forecast_totals import aligned_tonnage, tonnage_column, total_label
 
 MAX_PIXELS=40_000_000
 
@@ -18,9 +19,13 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
   from server.plan_export import table_image
   return table_image(report, palette, with_brand, stamp)
  table=report['sourceTable'];rows=table['rows'];header=table['header'];p=palette
+ ton_col=None
  if report['mode']=='forecast':
   from server.forecast_order import source_rows
   rows=source_rows(table)
+  ton_col=tonnage_column(table,rows[header])
+  if ton_col is not None:
+   rows=aligned_tonnage(rows,table,ton_col)
  width=max(map(len,rows))
  hidden=set()
  if report['mode']=='forecast' and not show_status:
@@ -34,7 +39,10 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  if report['mode']=='forecast' and priority is None:
   candidates=[i for i,value in enumerate(rows[header]) if norm(value) in ('prioritate','priority','urgenta')]
   if len(candidates)==1:priority=candidates[0]
- def is_total(row):return norm(' '.join(row[:3])).startswith(('total','intrari'))
+ def is_total(row):
+  if report['mode']=='forecast':
+   return any(total_label(value) for value in row) or norm(' '.join(row[:3])).startswith('intrari')
+  return norm(' '.join(row[:3])).startswith(('total','intrari'))
  def header_lines(value):
   words=str(value).split()
   if len(words)<2:return [' '.join(words)] if words else []
@@ -81,11 +89,12 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
  y=start
  for ri,(row,height) in enumerate(zip(rows,heights)):
   if not height:continue
-  first=' '.join(row[:3]).strip().upper();total=first.startswith(('TOTAL','INTRARI','INTRĂRI'))
+  total=ri>header and is_total(row)
   fill=p['head'] if ri==header else p['yellow'] if total else p['stripe'] if ri%2 else p['paper']
   if report['mode']=='forecast' and total:
-   if first.startswith('TOTAL AL') and not first.startswith(('TOTAL AL +','TOTAL AL+')):fill=p['blue']
-   elif first.startswith('TOTAL CU'):fill=p['green']
+   group=next((kind for value in row if (kind:=total_label(value))),None)
+   if group=='AL':fill=p['blue']
+   elif group=='CU':fill=p['green']
   d.rectangle((30,y,image_width-30,y+height),fill=fill)
   nonempty=[(i,row[c]) for i,c in enumerate(columns) if c<len(row) and row[c]]
   # Title rows in Excel are commonly merged. Preserve the title across empty cells.
@@ -104,11 +113,10 @@ def source_image(report,palette,show_status=True,stamp=None,with_brand=True):
     if marked:urgent_badge(d,(x+w/2,y+height/2),p)
     cell_lines=[] if marked else layouts[ri].get(ci,[])
     for n,line in enumerate(cell_lines):
-     left=x+16 if total and not numeric(line) else x+(w-d.textlength(line,font=f))/2
-     color=p['accent'] if total and numeric(line) else p['ink']
+     left=x+16 if total and ci!=ton_col and not numeric(line) else x+(w-d.textlength(line,font=f))/2
+     color=p['accent'] if total and (ci==ton_col or numeric(line)) else p['ink']
      d.text((left,y+(height-28*len(cell_lines))/2+n*28 if ri==header else y+(height-32)/2+n*32),line,font=f,fill=color)
-    d.line((x,y,x,y+height),fill=p['line']);x+=w
-   d.line((x,y,x,y+height),fill=p['line'])
+    x+=w
   d.line((30,y+height,image_width-30,y+height),fill=p['line']);y+=height
  d.line((30,start,image_width-30,start),fill=p['line'])
  return image

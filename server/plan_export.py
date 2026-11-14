@@ -198,8 +198,6 @@ def table_image(plan, palette, with_brand=True, stamp=None):
                 d.rectangle((xs[col],y,xs[col+1],y+row_height),fill=palette['success_bg'])
             elif keys[col]=='remaining' and index>header and not total:
                 d.rectangle((xs[col],y,xs[col+1],y+row_height),fill=palette['blue'])
-            if not total and (col==0 or groups[col] != groups[col-1] or keys[col]=='remaining'):
-                d.line((xs[col],y,xs[col],y+row_height),fill=palette['line'],width=2)
         for col,span,lines,bold,is_number in cells:
             anchor = 'rt' if is_number else 'lt'
             x = xs[col]+span-12 if is_number else xs[col]+12
